@@ -42,3 +42,8 @@ echo -e "  2. Run    ${CYAN}npm run db:init${NC}        → create PostgreSQL ta
 echo -e "  3. Run    ${CYAN}npm run dev${NC}            → start both servers\n"
 echo -e "  Backend  → ${CYAN}http://localhost:4000${NC}"
 echo -e "  Frontend → ${CYAN}http://localhost:3000${NC}\n"
+
+
+psql -U postgres
+\c chattappdb
+psql -U postgres -d chatappdb -f backend/schema.sql
