@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 💬 ChatDApp
 
 Modern off-chain real-time chat application.
@@ -157,3 +158,6 @@ All routes except `/auth/*` require `Authorization: Bearer <token>`.
 ### Frontend → Vercel
 1. Set `NEXT_PUBLIC_API_URL=https://your-backend-url.com/api`
 2. `vercel --prod`
+=======
+# ChatApp
+>>>>>>> 5b7eb8cc44959bf744b2b467e36a7eab38d61b56
