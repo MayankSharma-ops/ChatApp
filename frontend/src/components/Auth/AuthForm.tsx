@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { MessageSquare, Eye, EyeOff } from 'lucide-react';
@@ -15,13 +15,36 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [name, setName]       = useState('');
   const [email, setEmail]     = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPw, setShowPw]   = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
+
+  const validatePasswordMatch = (value: string) => {
+    const confirmInput = confirmPasswordRef.current;
+    if (!confirmInput) return;
+
+    if (value && value !== password) {
+      confirmInput.setCustomValidity('Passwords do not match');
+      confirmInput.reportValidity();
+      setError('Passwords do not match');
+    } else {
+      confirmInput.setCustomValidity('');
+      if (error === 'Passwords do not match') {
+        setError('');
+      }
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    if (mode === 'register' && password !== confirmPassword) {
+      validatePasswordMatch(confirmPassword);
+      return;
+    }
     setLoading(true);
     try {
       if (mode === 'login') {
@@ -105,7 +128,13 @@ export default function AuthForm({ mode }: AuthFormProps) {
                   type={showPw ? 'text' : 'password'}
                   placeholder={mode === 'register' ? 'Min 6 characters' : 'Your password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    const nextPassword = e.target.value;
+                    setPassword(nextPassword);
+                    if (mode === 'register' && confirmPassword) {
+                      validatePasswordMatch(confirmPassword);
+                    }
+                  }}
                   required
                   minLength={6}
                 />
@@ -118,6 +147,37 @@ export default function AuthForm({ mode }: AuthFormProps) {
                 </button>
               </div>
             </div>
+
+            {mode === 'register' && (
+              <div>
+                <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wide">
+                  Retype Password
+                </label>
+                <div className="relative">
+                  <input
+                    ref={confirmPasswordRef}
+                    className="input-base pr-12"
+                    type={showConfirmPw ? 'text' : 'password'}
+                    placeholder="Retype password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setConfirmPassword(value);
+                      validatePasswordMatch(value);
+                    }}
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                    onClick={() => setShowConfirmPw((p) => !p)}
+                  >
+                    {showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <button type="submit" className="btn-primary flex items-center justify-center gap-2 mt-1" disabled={loading}>
               {loading ? <Spinner size={18} /> : null}

@@ -47,3 +47,5 @@ echo -e "  Frontend → ${CYAN}http://localhost:3000${NC}\n"
 psql -U postgres
 \c chattappdb
 psql -U postgres -d chatappdb -f backend/schema.sql
+psql -U postgres -d chatappdb -c "\dt" //list databases tables
+psql -U postgres -d chatappdb -c "SELECT * FROM users;" //list users credentials
