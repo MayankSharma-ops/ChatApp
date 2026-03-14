@@ -23,8 +23,8 @@ app.use(cors({
 }));
 
 // Rate limiting
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 2000 });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 
 app.use(limiter);
 app.use(express.json({ limit: '10kb' }));
