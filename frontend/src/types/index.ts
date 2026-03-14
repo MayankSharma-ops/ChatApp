@@ -58,6 +58,7 @@ export interface ChatContextType {
   activeFriend:    Friend | null;
   setActiveFriend: (f: Friend | null) => void;
   sendMessage:     (content: string) => Promise<void>;
+  searchUsers:     (query: string) => Promise<void>;
   sendRequest:     (receiverId: string) => Promise<void>;
   respondRequest:  (requesterId: string, accept: boolean) => Promise<void>;
   loadMessages:    (friendId: string) => Promise<void>;

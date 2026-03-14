@@ -28,17 +28,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const refreshAll = useCallback(async () => {
     if (!token) return;
     try {
-      const [f, fr, p, u] = await Promise.allSettled([
+      const [f, fr, p] = await Promise.allSettled([
         api.get<Friend[]>('/friends', token),
         api.get<FriendRequest[]>('/friends/requests', token),
         api.get<PendingRequest[]>('/friends/pending', token),
-        api.get<User[]>('/users', token),
       ]);
       if (f.status  === 'fulfilled') setFriends(f.value);
       if (fr.status === 'fulfilled') setFriendRequests(fr.value);
       if (p.status  === 'fulfilled') setPending(p.value);
-      if (u.status  === 'fulfilled') setAllUsers(u.value);
     } catch {}
+  }, [token]);
+
+  const searchUsers = useCallback(async (query: string) => {
+    if (!token) return;
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      setAllUsers([]);
+      return;
+    }
+
+    try {
+      const users = await api.get<User[]>(`/users?q=${encodeURIComponent(trimmedQuery)}`, token);
+      setAllUsers(users);
+      clearError();
+    } catch (e: any) {
+      setError(e.message);
+    }
   }, [token]);
 
   useEffect(() => {
@@ -112,7 +127,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     <ChatContext.Provider value={{
       friends, friendRequests, pendingRequests, allUsers,
       messages, activeFriend, setActiveFriend,
-      sendMessage, sendRequest, respondRequest, loadMessages,
+      sendMessage, searchUsers, sendRequest, respondRequest, loadMessages,
       refreshAll, chatLoading, msgLoading, error, clearError,
     }}>
       {children}

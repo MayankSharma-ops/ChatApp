@@ -31,7 +31,7 @@ export default function NavBar() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
           <MessageSquare className="text-brand" size={22} />
-          <span className="hidden sm:block">ChatDApp</span>
+          <span className="hidden sm:block">ChatApp</span>
         </Link>
 
         {/* Desktop nav */}

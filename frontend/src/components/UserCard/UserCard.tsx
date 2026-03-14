@@ -1,6 +1,7 @@
 'use client';
 
 import { useChat } from '@/context/ChatContext';
+import { useAuth } from '@/context/AuthContext';
 import Avatar from '@/components/UI/Avatar';
 import { UserPlus, Clock, UserCheck } from 'lucide-react';
 import { User } from '@/types';
@@ -13,6 +14,8 @@ interface Props {
 
 export default function UserCard({ user, isFriend, isPending }: Props) {
   const { sendRequest, chatLoading } = useChat();
+  const { user: currentUser } = useAuth();
+  const isSelf = currentUser?.id === user.id;
 
   return (
     <div className="card flex flex-col items-center gap-3 text-center hover:border-brand/20 transition-colors relative">
@@ -22,9 +25,13 @@ export default function UserCard({ user, isFriend, isPending }: Props) {
         <p className="text-xs text-white/40 truncate mt-0.5">{user.email}</p>
       </div>
 
-      {isFriend ? (
+      {isSelf ? (
+        <div className="flex items-center gap-1.5 text-xs text-amber-300 font-medium py-2 px-4 bg-amber-500/10 rounded-full border border-amber-500/20">
+          You cannot add yourself
+        </div>
+      ) : isFriend ? (
         <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium py-2 px-4 bg-emerald-500/10 rounded-full border border-emerald-500/20">
-          <UserCheck size={12} /> Friends
+          <UserCheck size={12} /> You are already friends
         </div>
       ) : isPending ? (
         <div className="flex items-center gap-1.5 text-xs text-white/40 font-medium py-2 px-4 bg-white/5 rounded-full border border-white/10">
