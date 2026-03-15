@@ -97,37 +97,39 @@ router.post('/request', authenticate, async (req: Request, res: Response): Promi
       res.status(409).json({ error: 'This user already sent you a request' }); return;
     }
 
-    // Check if a row already exists from me to them (any status)
-    const existing = await pool.query(
-      `SELECT id, status FROM friend_requests
-       WHERE requester_id=$1 AND receiver_id=$2`,
+    // If there is an existing request from me to this user:
+    //  - pending  => conflict
+    //  - accepted => conflict (already friends)
+    //  - rejected => re-open it as pending and refresh created_at
+    // Otherwise create a new request.
+    const upsert = await pool.query(
+      `INSERT INTO friend_requests (requester_id, receiver_id, status)
+       VALUES ($1, $2, 'pending')
+       ON CONFLICT (requester_id, receiver_id)
+       DO UPDATE
+         SET status='pending', created_at=NOW()
+       WHERE friend_requests.status='rejected'
+       RETURNING id`,
       [me, receiverId]
     );
 
-    if (existing.rows.length) {
-      const currentStatus = existing.rows[0].status;
-
-      if (currentStatus === 'pending') {
-        res.status(409).json({ error: 'Request already pending' }); return;
-      }
-
-      if (currentStatus === 'accepted') {
-        res.status(409).json({ error: 'Already friends' }); return;
-      }
-
-      // currentStatus === 'rejected' — reset it to pending
-      await pool.query(
-        `UPDATE friend_requests
-         SET status = 'pending', created_at = NOW()
+    if (!upsert.rows.length) {
+      const existing = await pool.query(
+        `SELECT status FROM friend_requests
          WHERE requester_id=$1 AND receiver_id=$2`,
         [me, receiverId]
       );
-    } else {
-      // No prior row — fresh insert
-      await pool.query(
-        'INSERT INTO friend_requests (requester_id, receiver_id) VALUES ($1,$2)',
-        [me, receiverId]
-      );
+
+      if (existing.rows[0]?.status === 'pending') {
+        res.status(409).json({ error: 'Request already pending' }); return;
+      }
+
+      if (existing.rows[0]?.status === 'accepted') {
+        res.status(409).json({ error: 'Already friends' }); return;
+      }
+
+      res.status(500).json({ error: 'Server error' });
+      return;
     }
 
     res.status(201).json({ success: true });
