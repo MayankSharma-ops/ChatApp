@@ -71,7 +71,7 @@ router.get('/pending', authenticate, async (req: Request, res: Response): Promis
   }
 });
 
-// POST /api/friends/request  — send request
+// POST /api/friends/request  — send (or re-send after rejection) a friend request
 router.post('/request', authenticate, async (req: Request, res: Response): Promise<void> => {
   const me = req.user!.userId;
   const { receiverId } = req.body;
@@ -87,18 +87,49 @@ router.post('/request', authenticate, async (req: Request, res: Response): Promi
       res.status(409).json({ error: 'Already friends' }); return;
     }
 
-    const pending = await pool.query(
+    // Check if the other person already sent us a pending request
+    const theirPending = await pool.query(
       `SELECT id FROM friend_requests
-       WHERE ((requester_id=$1 AND receiver_id=$2) OR (requester_id=$2 AND receiver_id=$1))
-         AND status='pending'`,
-      [me, receiverId]
+       WHERE requester_id=$1 AND receiver_id=$2 AND status='pending'`,
+      [receiverId, me]
     );
-    if (pending.rows.length) { res.status(409).json({ error: 'Request already pending' }); return; }
+    if (theirPending.rows.length) {
+      res.status(409).json({ error: 'This user already sent you a request' }); return;
+    }
 
-    await pool.query(
-      'INSERT INTO friend_requests (requester_id, receiver_id) VALUES ($1,$2)',
+    // Check if a row already exists from me to them (any status)
+    const existing = await pool.query(
+      `SELECT id, status FROM friend_requests
+       WHERE requester_id=$1 AND receiver_id=$2`,
       [me, receiverId]
     );
+
+    if (existing.rows.length) {
+      const currentStatus = existing.rows[0].status;
+
+      if (currentStatus === 'pending') {
+        res.status(409).json({ error: 'Request already pending' }); return;
+      }
+
+      if (currentStatus === 'accepted') {
+        res.status(409).json({ error: 'Already friends' }); return;
+      }
+
+      // currentStatus === 'rejected' — reset it to pending
+      await pool.query(
+        `UPDATE friend_requests
+         SET status = 'pending', created_at = NOW()
+         WHERE requester_id=$1 AND receiver_id=$2`,
+        [me, receiverId]
+      );
+    } else {
+      // No prior row — fresh insert
+      await pool.query(
+        'INSERT INTO friend_requests (requester_id, receiver_id) VALUES ($1,$2)',
+        [me, receiverId]
+      );
+    }
+
     res.status(201).json({ success: true });
   } catch (e: any) {
     console.error(e.message);
