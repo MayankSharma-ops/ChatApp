@@ -97,39 +97,79 @@ router.post('/request', authenticate, async (req: Request, res: Response): Promi
       res.status(409).json({ error: 'This user already sent you a request' }); return;
     }
 
-    // If there is an existing request from me to this user:
-    //  - pending  => conflict
-    //  - accepted => conflict (already friends)
-    //  - rejected => re-open it as pending and refresh created_at
-    // Otherwise create a new request.
-    const upsert = await pool.query(
-      `INSERT INTO friend_requests (requester_id, receiver_id, status)
-       VALUES ($1, $2, 'pending')
-       ON CONFLICT (requester_id, receiver_id)
-       DO UPDATE
-         SET status='pending', created_at=NOW()
-       WHERE friend_requests.status='rejected'
-       RETURNING id`,
-      [me, receiverId]
-    );
+const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    if (!upsert.rows.length) {
-      const existing = await pool.query(
+      const existing = await client.query(
         `SELECT status FROM friend_requests
-         WHERE requester_id=$1 AND receiver_id=$2`,
+         WHERE requester_id=$1 AND receiver_id=$2
+         FOR UPDATE`,
         [me, receiverId]
       );
 
-      if (existing.rows[0]?.status === 'pending') {
-        res.status(409).json({ error: 'Request already pending' }); return;
+    if (!existing.rows.length) {
+        await client.query(
+          "INSERT INTO friend_requests (requester_id, receiver_id, status) VALUES ($1,$2,'pending')",
+          [me, receiverId]
+        );
+      } else if (existing.rows[0].status === 'rejected') {
+        await client.query(
+          `UPDATE friend_requests
+           SET status='pending', created_at=NOW()
+           WHERE requester_id=$1 AND receiver_id=$2`,
+          [me, receiverId]
+        );
+      } else if (existing.rows[0].status === 'pending') {
+        const conflictError: any = new Error('Request already pending');
+        conflictError.statusCode = 409;
+        throw conflictError;
+      } else {
+        const conflictError: any = new Error('Already friends');
+        conflictError.statusCode = 409;
+        throw conflictError;
       }
 
-      if (existing.rows[0]?.status === 'accepted') {
-        res.status(409).json({ error: 'Already friends' }); return;
+      await client.query('COMMIT');
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+
+      if (err?.statusCode === 409) {
+        res.status(409).json({ error: err.message });
+        return;
       }
 
-      res.status(500).json({ error: 'Server error' });
-      return;
+      if (err?.code === '23505') {
+        const concurrent = await pool.query(
+          `SELECT status FROM friend_requests WHERE requester_id=$1 AND receiver_id=$2`,
+          [me, receiverId]
+        );
+
+        if (concurrent.rows[0]?.status === 'pending') {
+          res.status(409).json({ error: 'Request already pending' });
+          return;
+        }
+
+        if (concurrent.rows[0]?.status === 'accepted') {
+          res.status(409).json({ error: 'Already friends' });
+          return;
+        }
+
+        if (concurrent.rows[0]?.status === 'rejected') {
+          await pool.query(
+            `UPDATE friend_requests
+             SET status='pending', created_at=NOW()
+             WHERE requester_id=$1 AND receiver_id=$2`,
+            [me, receiverId]
+          );
+          res.status(201).json({ success: true });
+          return;
+        }
+      }
+
+      throw err;
+    } finally {
+      client.release();
     }
 
     res.status(201).json({ success: true });
