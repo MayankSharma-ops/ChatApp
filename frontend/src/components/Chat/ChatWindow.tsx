@@ -5,7 +5,7 @@ import { useChat } from '@/context/ChatContext';
 import { useAuth } from '@/context/AuthContext';
 import Avatar from '@/components/UI/Avatar';
 import Spinner from '@/components/UI/Spinner';
-import { Send, Smile, Video, MessageSquare } from 'lucide-react';
+import { Send, Smile, Video, MessageSquare, ArrowLeft } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import clsx from 'clsx';
 
@@ -20,7 +20,7 @@ function formatTime(iso: string) {
 
 export default function ChatWindow() {
   const { user } = useAuth();
-  const { activeFriend, messages, sendMessage, msgLoading } = useChat();
+  const { activeFriend, setActiveFriend, messages, sendMessage, msgLoading } = useChat();
 
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
@@ -74,6 +74,14 @@ export default function ChatWindow() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-surface-card/50">
         <div className="flex items-center gap-3">
+          {/* Back button — mobile only */}
+          <button
+            onClick={() => setActiveFriend(null)}
+            className="sm:hidden p-1.5 -ml-1 text-white/50 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+            aria-label="Back to friend list"
+          >
+            <ArrowLeft size={20} />
+          </button>
           <Avatar name={activeFriend.friend_name} color={activeFriend.friend_avatar_color} size="md" />
           <div>
             <p className="font-semibold text-sm">{activeFriend.friend_name}</p>
@@ -84,7 +92,7 @@ export default function ChatWindow() {
           onClick={() => setShowVideo(true)}
           className="flex items-center gap-1.5 text-xs font-medium text-white/50 hover:text-brand transition-colors px-3 py-1.5 rounded-lg hover:bg-brand/10"
         >
-          <Video size={15} /> Video Call
+          <Video size={15} /> <span className="hidden sm:inline">Video Call</span>
         </button>
       </div>
 
