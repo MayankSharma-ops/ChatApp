@@ -1,4 +1,4 @@
-# 💬 ChatDApp
+# 💬 ChatApp
 
 A modern, real-time off-chain chat application with friend requests, messaging, and video calls.
 
