@@ -1,15 +1,16 @@
 # 💬 ChatApp
 
-A modern, real-time off-chain chat application with friend requests, messaging, and video calls.
+A modern, real-time chat application with Socket.IO messaging, friend requests, and video calls.
 
-| Layer    | Tech                             |
-| -------- | -------------------------------- |
-| Frontend | Next.js 15, React 19, TypeScript |
-| Styling  | Tailwind CSS v3                  |
-| Backend  | Node.js, Express, TypeScript     |
-| Database | PostgreSQL                       |
-| Auth     | JWT (bcrypt password hashing)    |
-| Node     | v22+ (via nvm)                   |
+| Layer     | Tech                             |
+| --------- | -------------------------------- |
+| Frontend  | Next.js 15, React 19, TypeScript |
+| Styling   | Tailwind CSS v3                  |
+| Backend   | Node.js, Express, TypeScript     |
+| Real-time | Socket.IO (WebSockets)           |
+| Database  | PostgreSQL                       |
+| Auth      | JWT (bcrypt password hashing)    |
+| Node      | v22+ (via nvm)                   |
 
 ---
 
@@ -17,7 +18,9 @@ A modern, real-time off-chain chat application with friend requests, messaging, 
 
 - **Authentication** — Register & login with JWT-based sessions, bcrypt password hashing
 - **Friend System** — Send, accept, or reject friend requests; view pending/incoming requests
-- **Real-time Messaging** — Chat with friends, emoji picker, auto-polling every 6 seconds
+- **Real-time Messaging** — Instant message delivery via Socket.IO WebSockets, emoji picker
+- **Read Receipts** — Messages marked as read in real-time, synced across clients
+- **Live Notifications** — Socket-powered push notifications for incoming messages
 - **Video Calls** — In-app video calling via Jitsi Meet (no account required)
 - **User Search** — Search all users by name or email to find and add friends
 - **Notifications** — Friend request badge counter in the nav bar
@@ -95,12 +98,13 @@ chatdapp/
 │   │   │   ├── auth.ts             ← register, login, /me
 │   │   │   ├── users.ts            ← search users by name/email
 │   │   │   ├── friends.ts          ← friend requests + list
-│   │   │   └── messages.ts         ← send & read messages, unread count
+│   │   │   └── messages.ts         ← fetch message history, unread count
 │   │   ├── middleware/
 │   │   │   └── auth.ts             ← JWT bearer middleware
 │   │   ├── types/index.ts          ← shared TypeScript types + Express augment
 │   │   ├── db.ts                   ← PostgreSQL pool (pg)
-│   │   └── server.ts               ← Express app, CORS, helmet, rate limiting
+│   │   ├── socket.ts               ← Socket.IO events (messaging, notifications)
+│   │   └── server.ts               ← HTTP server, Express + Socket.IO attach
 │   ├── schema.sql                  ← DB schema (users, friends, messages)
 │   ├── tsconfig.json
 │   └── package.json
@@ -125,8 +129,10 @@ chatdapp/
         │   └── UI/                 ← Avatar, Spinner, Toast
         ├── context/
         │   ├── AuthContext.tsx     ← User session, login, logout
-        │   └── ChatContext.tsx     ← Friends, messages, polling logic
-        ├── lib/api.ts              ← Typed fetch wrapper
+        │   └── ChatContext.tsx     ← Friends, messages, Socket.IO integration
+        ├── lib/
+        │   ├── api.ts              ← Typed fetch wrapper (REST)
+        │   └── useSocket.ts        ← Socket.IO connection hook
         └── types/index.ts          ← Shared frontend types
 ```
 
@@ -134,9 +140,11 @@ chatdapp/
 
 ## 🌐 API Reference
 
-All routes except `/api/auth/*` require `Authorization: Bearer <token>`.
+### REST API
 
-### Auth
+All REST routes except `/api/auth/*` require `Authorization: Bearer <token>`.
+
+#### Auth
 
 | Method | Path                  | Body                          |
 | ------ | --------------------- | ----------------------------- |
@@ -144,14 +152,14 @@ All routes except `/api/auth/*` require `Authorization: Bearer <token>`.
 | POST   | `/api/auth/login`     | `{ email, password }`         |
 | GET    | `/api/auth/me`        | —                             |
 
-### Users
+#### Users
 
 | Method | Path              | Query / Notes                    |
 | ------ | ----------------- | -------------------------------- |
 | GET    | `/api/users`      | `?q=<search>` — name or email    |
 | GET    | `/api/users/:id`  | Single user by UUID              |
 
-### Friends
+#### Friends
 
 | Method | Path                      | Body                        |
 | ------ | ------------------------- | --------------------------- |
@@ -161,13 +169,33 @@ All routes except `/api/auth/*` require `Authorization: Bearer <token>`.
 | POST   | `/api/friends/request`    | `{ receiverId }`            |
 | POST   | `/api/friends/respond`    | `{ requesterId, accept }`   |
 
-### Messages
+#### Messages (History)
 
-| Method | Path                        | Body / Notes                    |
+| Method | Path                        | Notes                           |
 | ------ | --------------------------- | ------------------------------- |
-| GET    | `/api/messages/:friendId`   | Conversation history (marks read)|
-| POST   | `/api/messages`             | `{ receiverId, content }`       |
+| GET    | `/api/messages/:friendId`   | Fetch conversation history      |
 | GET    | `/api/messages/unread/count`| Unread count grouped by sender  |
+
+### Socket.IO Events
+
+Socket connects to `ws://localhost:4000` with `auth: { token }` (JWT).
+
+#### Client → Server
+
+| Event          | Payload                             | Description                          |
+| -------------- | ----------------------------------- | ------------------------------------ |
+| `join_chat`    | `friendId: string`                  | Join a conversation room             |
+| `leave_chat`   | `friendId: string`                  | Leave a conversation room            |
+| `send_message` | `{ receiverId, content }` + ack     | Send a message (saved to DB)         |
+| `mark_read`    | `friendId: string`                  | Mark messages from friend as read    |
+
+#### Server → Client
+
+| Event           | Payload                                          | Description                       |
+| --------------- | ------------------------------------------------ | --------------------------------- |
+| `new_message`   | `Message` object                                 | Real-time incoming message        |
+| `notification`  | `{ type, senderId, senderName, preview }`        | Push notification for new message |
+| `messages_read` | `{ readBy: string }`                             | Read receipt from the other user  |
 
 ---
 
@@ -223,10 +251,11 @@ From the **root** directory:
 
 - Passwords hashed with **bcrypt** (12 rounds)
 - Routes protected with **JWT bearer tokens** (7-day expiry)
+- **Socket.IO authentication** — JWT verified on connection handshake
 - **Helmet.js** sets secure HTTP headers
-- **Rate limiting** — 200 req/15 min globally, 20 req/15 min on auth routes
-- **CORS** restricted to `FRONTEND_URL`
-- Message sending requires an existing **friendship** (enforced server-side)
+- **Rate limiting** — 2000 req/15 min globally, 100 req/15 min on auth routes
+- **CORS** restricted to `FRONTEND_URL` (both REST and WebSocket)
+- Message sending requires an existing **friendship** (enforced server-side on socket events)
 - Input validation via **Zod** on all auth endpoints
 
 ---
@@ -251,6 +280,7 @@ psql -U postgres -d chatappdb -c "DELETE FROM users WHERE id='<user-uuid>';"
 
 ## 📝 Notes
 
-- **Polling** — Messages refresh every 6 s; friend/request lists refresh every 15 s. For a production app, replace with WebSockets.
+- **Architecture** — REST API handles auth, user profiles, and fetching old messages. Socket.IO handles real-time message delivery and notifications. Friend/request lists still refresh every 15 s via REST polling.
 - **Video Calls** — Powered by [Jit.si Meet](https://meet.jit.si). Rooms are derived from the two users' sorted UUIDs so both sides join the same room automatically.
 - **Avatar Colors** — Assigned randomly from a preset palette at registration; stored in the DB.
+- **Reconnection** — Socket.IO client auto-reconnects with exponential backoff (1s → 5s max). Messages sent during disconnection are queued.
