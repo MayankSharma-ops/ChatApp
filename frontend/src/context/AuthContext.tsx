@@ -16,10 +16,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem('chatdapp_token');
     if (!stored) { setLoading(false); return; }
-    setToken(stored);
     api.get<User>('/auth/me', stored)
-      .then(setUser)
-      .catch(() => { localStorage.removeItem('chatdapp_token'); })
+      .then((u) => {
+        setToken(stored);
+        setUser(u);
+      })
+      .catch(() => {
+        localStorage.removeItem('chatdapp_token');
+        setToken(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
