@@ -39,7 +39,7 @@ export default function CallOverlay() {
       localVideoRef.current.srcObject = localStream;
       localVideoRef.current.play().catch(e => console.error('Local play err:', e));
     }
-  }, [localStream]);
+  }, [localStream, callState]);
 
   // Bind remote stream to video element
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function CallOverlay() {
       remoteVideoRef.current.srcObject = remoteStream;
       remoteVideoRef.current.play().catch(e => console.error('Remote play err:', e));
     }
-  }, [remoteStream]);
+  }, [remoteStream, callState]);
 
 
 
