@@ -97,6 +97,8 @@ export interface CallContextType {
   peerAvatarColor: string | null;
   isMuted:         boolean;
   isVideoOff:      boolean;
+  isFrontCamera:   boolean;
+  isSpeakerOn:     boolean;
   callDuration:    number;
   callError:       string | null;
   incomingCall:    IncomingCallData | null;
@@ -107,8 +109,10 @@ export interface CallContextType {
   callUser:    (friendId: string, friendName: string, friendAvatarColor: string, type: 'audio' | 'video') => Promise<void>;
   answerCall:  () => Promise<void>;
   rejectCall:  () => void;
-  endCall:     () => void;
-  toggleMute:  () => void;
-  toggleVideo: () => void;
+  endCall:      () => void;
+  toggleMute:   () => void;
+  toggleVideo:  () => void;
+  flipCamera:   () => Promise<void>;
+  toggleSpeaker:() => void;
 }
 

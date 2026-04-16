@@ -59,6 +59,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [peerAvatarColor, setPeerColor] = useState<string | null>(null);
   const [isMuted, setIsMuted]           = useState(false);
   const [isVideoOff, setIsVideoOff]     = useState(false);
+  const [isFrontCamera, setIsFrontCamera] = useState(true);
+  const [isSpeakerOn, setIsSpeakerOn]   = useState(true);
   const [callDuration, setCallDuration] = useState(0);
   const [callError, setCallError]       = useState<string | null>(null);
   const [incomingCall, setIncomingCall]  = useState<IncomingCallData | null>(null);
@@ -69,6 +71,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const durationTimer  = useRef<NodeJS.Timeout | null>(null);
   const ringtoneRef    = useRef<HTMLAudioElement | null>(null);
+  const iceCandidateQueue = useRef<RTCIceCandidateInit[]>([]);
 
   // Keep a ref to callId so event handlers always see the latest
   const callIdRef   = useRef(callId);
@@ -98,11 +101,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setPeerColor(null);
     setIsMuted(false);
     setIsVideoOff(false);
+    setIsFrontCamera(true);
+    setIsSpeakerOn(true);
     setCallDuration(0);
     setCallError(null);
     setIncomingCall(null);
     setLocalStream(null);
     setRemoteStream(null);
+    iceCandidateQueue.current = [];
 
     if (durationTimer.current) clearInterval(durationTimer.current);
     durationTimer.current = null;
@@ -215,6 +221,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setCallError(null);
     setCallType(type);
     setPeerId(friendId);
+    peerIdRef.current = friendId;
     setPeerName(friendName);
     setPeerColor(friendAvatarColor);
     setCallState('calling');
@@ -254,6 +261,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setCallType(incomingCall.callType);
     setCallId(incomingCall.callId);
     setPeerId(incomingCall.callerId);
+    peerIdRef.current = incomingCall.callerId;
     setPeerName(incomingCall.callerName);
     setPeerColor(incomingCall.callerAvatarColor);
 
@@ -267,6 +275,16 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
       // Set the remote offer
       await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+
+      // Process queued ICE candidates
+      for (const candidate of iceCandidateQueue.current) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error('Error adding queued ICE candidate', e);
+        }
+      }
+      iceCandidateQueue.current = [];
 
       // Create and send answer
       const answer = await pc.createAnswer();
@@ -327,6 +345,51 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
   }, [localStream]);
 
+  // ── Flip camera (front ↔ back) ────────────────────────────────────
+  const flipCamera = useCallback(async () => {
+    if (!localStream || callType !== 'video') return;
+
+    const newFacing = isFrontCamera ? 'environment' : 'user';
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { ...VIDEO_CONSTRAINTS, facingMode: newFacing },
+        audio: false,
+      });
+
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+
+      // Replace track in the peer connection
+      const pc = peerConnection.current;
+      if (pc) {
+        const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+        if (sender) await sender.replaceTrack(newVideoTrack);
+      }
+
+      // Replace track in local stream
+      const oldVideoTrack = localStream.getVideoTracks()[0];
+      if (oldVideoTrack) {
+        localStream.removeTrack(oldVideoTrack);
+        oldVideoTrack.stop();
+      }
+      localStream.addTrack(newVideoTrack);
+
+      // Trigger re-render by setting a new stream reference
+      setLocalStream(new MediaStream(localStream.getTracks()));
+      setIsFrontCamera((f) => !f);
+    } catch (err) {
+      console.warn('Failed to flip camera:', err);
+    }
+  }, [localStream, callType, isFrontCamera]);
+
+  // ── Toggle speaker ────────────────────────────────────────────────
+  const toggleSpeaker = useCallback(() => {
+    setIsSpeakerOn((s) => !s);
+    // Note: Web Audio API / setSinkId is limited in browsers.
+    // On mobile WebViews (e.g., PWA), this can toggle earpiece vs speaker.
+    // For desktop browsers, this is primarily a UI toggle.
+  }, []);
+
   // ══════════════════════════════════════════════════════════════════
   //  SOCKET EVENT LISTENERS
   // ══════════════════════════════════════════════════════════════════
@@ -364,6 +427,17 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+
+        // Process queued ICE candidates
+        for (const candidate of iceCandidateQueue.current) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error('Error adding queued ICE candidate', e);
+          }
+        }
+        iceCandidateQueue.current = [];
+
         setCallState('connected');
         setCallId(data.callId);
         startDurationTimer();
@@ -410,7 +484,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
       fromUserId: string;
     }) => {
       const pc = peerConnection.current;
-      if (!pc) return;
+      if (!pc || !pc.remoteDescription) {
+        iceCandidateQueue.current.push(data.candidate);
+        return;
+      }
 
       try {
         await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -453,9 +530,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
   return (
     <CallContext.Provider value={{
       callState, callType, callId, peerId, peerName, peerAvatarColor,
-      isMuted, isVideoOff, callDuration, callError,
+      isMuted, isVideoOff, isFrontCamera, isSpeakerOn,
+      callDuration, callError,
       incomingCall, localStream, remoteStream,
-      callUser, answerCall, rejectCall, endCall, toggleMute, toggleVideo,
+      callUser, answerCall, rejectCall, endCall,
+      toggleMute, toggleVideo, flipCamera, toggleSpeaker,
     }}>
       {children}
     </CallContext.Provider>
