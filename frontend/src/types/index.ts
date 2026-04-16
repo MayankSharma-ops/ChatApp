@@ -73,3 +73,42 @@ export interface ChatContextType {
   error:           string;
   clearError:      () => void;
 }
+
+// ── WebRTC Call Types ──────────────────────────────────────────────
+
+export type CallState = 'idle' | 'calling' | 'ringing' | 'connected' | 'ended';
+
+export interface IncomingCallData {
+  callId: string;
+  callerId: string;
+  callerName: string;
+  callerAvatarColor: string;
+  offer: RTCSessionDescriptionInit;
+  callType: 'audio' | 'video';
+}
+
+export interface CallContextType {
+  // State
+  callState:       CallState;
+  callType:        'audio' | 'video' | null;
+  callId:          string | null;
+  peerId:          string | null;
+  peerName:        string | null;
+  peerAvatarColor: string | null;
+  isMuted:         boolean;
+  isVideoOff:      boolean;
+  callDuration:    number;
+  callError:       string | null;
+  incomingCall:    IncomingCallData | null;
+  localStream:     MediaStream | null;
+  remoteStream:    MediaStream | null;
+
+  // Actions
+  callUser:    (friendId: string, friendName: string, friendAvatarColor: string, type: 'audio' | 'video') => Promise<void>;
+  answerCall:  () => Promise<void>;
+  rejectCall:  () => void;
+  endCall:     () => void;
+  toggleMute:  () => void;
+  toggleVideo: () => void;
+}
+

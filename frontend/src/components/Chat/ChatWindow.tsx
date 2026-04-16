@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useChat } from '@/context/ChatContext';
 import { useAuth } from '@/context/AuthContext';
+import { useCall } from '@/context/CallContext';
 import Avatar from '@/components/UI/Avatar';
 import Spinner from '@/components/UI/Spinner';
-import { Send, Smile, Video, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Send, Smile, Video, Phone, MessageSquare, ArrowLeft } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import clsx from 'clsx';
 
@@ -21,10 +22,10 @@ function formatTime(iso: string) {
 export default function ChatWindow() {
   const { user } = useAuth();
   const { activeFriend, setActiveFriend, messages, sendMessage, msgLoading } = useChat();
+  const { callUser, callState } = useCall();
 
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const emojiRef  = useRef<HTMLDivElement>(null);
@@ -51,10 +52,14 @@ export default function ChatWindow() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const buildVideoRoom = () => {
-    if (!user || !activeFriend) return '';
-    const ids = [user.id, activeFriend.friend_id].sort().join('-').replace(/[^a-z0-9-]/gi, '');
-    return `https://meet.jit.si/chatdapp-${ids}`;
+  const handleCall = (type: 'audio' | 'video') => {
+    if (!activeFriend || callState !== 'idle') return;
+    callUser(
+      activeFriend.friend_id,
+      activeFriend.friend_name,
+      activeFriend.friend_avatar_color,
+      type,
+    );
   };
 
   if (!activeFriend) {
@@ -88,12 +93,26 @@ export default function ChatWindow() {
             <p className="text-xs text-white/30">{activeFriend.friend_email}</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowVideo(true)}
-          className="flex items-center gap-1.5 text-xs font-medium text-white/50 hover:text-brand transition-colors px-3 py-1.5 rounded-lg hover:bg-brand/10"
-        >
-          <Video size={15} /> <span className="hidden sm:inline">Video Call</span>
-        </button>
+
+        {/* Call buttons */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => handleCall('audio')}
+            disabled={callState !== 'idle'}
+            className="flex items-center gap-1.5 text-xs font-medium text-white/50 hover:text-green-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-green-500/10 disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="Voice call"
+          >
+            <Phone size={15} /> <span className="hidden sm:inline">Voice</span>
+          </button>
+          <button
+            onClick={() => handleCall('video')}
+            disabled={callState !== 'idle'}
+            className="flex items-center gap-1.5 text-xs font-medium text-white/50 hover:text-brand transition-colors px-3 py-1.5 rounded-lg hover:bg-brand/10 disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="Video call"
+          >
+            <Video size={15} /> <span className="hidden sm:inline">Video</span>
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -162,30 +181,6 @@ export default function ChatWindow() {
           </button>
         </div>
       </div>
-
-      {/* Video modal */}
-      {showVideo && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-surface-card rounded-2xl overflow-hidden w-full max-w-4xl border border-white/10 shadow-2xl">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Video size={18} className="text-brand" />
-                Call with {activeFriend.friend_name}
-              </h3>
-              <button onClick={() => setShowVideo(false)}
-                className="text-white/40 hover:text-white transition-colors text-sm font-medium">
-                ✕ Close
-              </button>
-            </div>
-            <iframe
-              src={buildVideoRoom()}
-              title="Video call"
-              allow="camera; microphone; fullscreen; display-capture"
-              className="w-full h-[70vh] border-0"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
