@@ -44,7 +44,12 @@ export interface AuthContextType {
   user: User | null;
   token: string | null;
   login:    (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  requestRegisterOtp: (
+    name: string,
+    email: string,
+    password: string
+  ) => Promise<{ message: string; expiresInMinutes: number }>;
+  register: (email: string, otp: string) => Promise<void>;
   logout:   () => void;
   loading:  boolean;
 }

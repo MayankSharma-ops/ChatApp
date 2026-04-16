@@ -1,7 +1,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  output: 'export', 
+  output: 'export',
+  outputFileTracingRoot: process.cwd(),
   images: { unoptimized: true },
   eslint: { ignoreDuringBuilds: true },
 };

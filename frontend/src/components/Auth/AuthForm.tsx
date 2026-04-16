@@ -11,16 +11,23 @@ interface AuthFormProps {
 }
 
 export default function AuthForm({ mode }: AuthFormProps) {
-  const { login, register } = useAuth();
+  const { login, register, requestRegisterOtp } = useAuth();
   const [name, setName]       = useState('');
   const [email, setEmail]     = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpExpiresInMinutes, setOtpExpiresInMinutes] = useState<number | null>(null);
   const [showPw, setShowPw]   = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [error, setError]     = useState('');
-  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [loadingAction, setLoadingAction] = useState<
+    'login' | 'request-otp' | 'verify-otp' | null
+  >(null);
   const confirmPasswordRef = useRef<HTMLInputElement>(null);
+  const loading = loadingAction !== null;
 
   const validatePasswordMatch = (value: string) => {
     const confirmInput = confirmPasswordRef.current;
@@ -29,7 +36,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
     if (value && value !== password) {
       confirmInput.setCustomValidity('Passwords do not match');
       confirmInput.reportValidity();
-      setError('Passwords do not match');
+      // setError('Passwords do not match');
     } else {
       confirmInput.setCustomValidity('');
       if (error === 'Passwords do not match') {
@@ -38,26 +45,76 @@ export default function AuthForm({ mode }: AuthFormProps) {
     }
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const resetOtpFlow = () => {
+    setOtp('');
+    setOtpRequested(false);
+    setOtpExpiresInMinutes(null);
+    setNotice('');
     setError('');
-    if (mode === 'register' && password !== confirmPassword) {
+  };
+
+  const sendOtp = async () => {
+    if (password !== confirmPassword) {
       validatePasswordMatch(confirmPassword);
       return;
     }
-    setLoading(true);
+
+    setError('');
+    setNotice('');
+    setLoadingAction('request-otp');
+
+    try {
+      const response = await requestRegisterOtp(name, email, password);
+      setOtp('');
+      setOtpRequested(true);
+      setOtpExpiresInMinutes(response.expiresInMinutes);
+      setNotice(
+        `Verification code sent to ${email}. It expires in ${response.expiresInMinutes} minutes.`
+      );
+    } catch (err: any) {
+      setOtp('');
+      setOtpRequested(false);
+      setOtpExpiresInMinutes(null);
+      setError(err.message || 'Unable to send verification code');
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (mode === 'register' && !otpRequested) {
+      await sendOtp();
+      return;
+    }
+
+    if (mode === 'register' && otp.length !== 6) {
+      setError('Enter the 6-digit verification code');
+      return;
+    }
+
+    setLoadingAction(mode === 'login' ? 'login' : 'verify-otp');
     try {
       if (mode === 'login') {
         await login(email, password);
       } else {
-        await register(name, email, password);
+        await register(email, otp);
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   };
+
+  const submitLabel =
+    mode === 'login'
+      ? 'Sign In'
+      : otpRequested
+        ? 'Verify OTP & Create Account'
+        : 'Send OTP';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
@@ -85,6 +142,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
               {error}
             </div>
           )}
+          {notice && (
+            <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm px-4 py-3 rounded-lg">
+              {notice}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {mode === 'register' && (
@@ -98,6 +160,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                   placeholder="Your name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  disabled={otpRequested}
                   required
                   minLength={2}
                 />
@@ -114,6 +177,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={otpRequested}
                 required
               />
             </div>
@@ -135,6 +199,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                       validatePasswordMatch(confirmPassword);
                     }
                   }}
+                  disabled={otpRequested}
                   required
                   minLength={6}
                 />
@@ -165,6 +230,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                       setConfirmPassword(value);
                       validatePasswordMatch(value);
                     }}
+                    disabled={otpRequested}
                     required
                     minLength={6}
                   />
@@ -179,10 +245,59 @@ export default function AuthForm({ mode }: AuthFormProps) {
               </div>
             )}
 
+            {mode === 'register' && otpRequested && (
+              <div>
+                <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wide">
+                  Verification Code
+                </label>
+                <input
+                  className="input-base text-center tracking-[0.45em]"
+                  type="text"
+                  placeholder="123456"
+                  value={otp}
+                  onChange={(e) =>
+                    setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
+                  }
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  minLength={6}
+                  maxLength={6}
+                />
+                <p className="text-xs text-white/40 mt-2">
+                  Enter the code emailed to you to finish signup.
+                  {otpExpiresInMinutes
+                    ? ` The code is valid for ${otpExpiresInMinutes} minutes.`
+                    : ''}
+                </p>
+              </div>
+            )}
+
             <button type="submit" className="btn-primary flex items-center justify-center gap-2 mt-1" disabled={loading}>
               {loading ? <Spinner size={18} /> : null}
-              {mode === 'login' ? 'Sign In' : 'Create Account'}
+              {submitLabel}
             </button>
+
+            {mode === 'register' && otpRequested && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  className="input-base text-sm font-semibold hover:border-white/20 transition-colors"
+                  onClick={() => void sendOtp()}
+                  disabled={loading}
+                >
+                  Resend OTP
+                </button>
+                <button
+                  type="button"
+                  className="input-base text-sm font-semibold hover:border-white/20 transition-colors"
+                  onClick={resetOtpFlow}
+                  disabled={loading}
+                >
+                  Change Details
+                </button>
+              </div>
+            )}
           </form>
 
           <p className="text-center text-sm text-white/40 mt-5">
@@ -199,4 +314,3 @@ export default function AuthForm({ mode }: AuthFormProps) {
     </div>
   );
 }
-

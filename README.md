@@ -16,7 +16,7 @@ A modern, real-time chat application with Socket.IO messaging, friend requests, 
 
 ## ✨ Features
 
-- **Authentication** — Register & login with JWT-based sessions, bcrypt password hashing
+- **Authentication** — Email OTP signup verification, JWT-based sessions, bcrypt password hashing
 - **Friend System** — Send, accept, or reject friend requests; view pending/incoming requests
 - **Real-time Messaging** — Instant message delivery via Socket.IO WebSockets, emoji picker
 - **Read Receipts** — Messages marked as read in real-time, synced across clients
@@ -39,7 +39,7 @@ bash setup.sh
 
 # 3. Configure backend environment
 cp backend/.env.example backend/.env
-# Edit backend/.env and set DATABASE_URL and JWT_SECRET
+# Edit backend/.env and set DATABASE_URL, JWT_SECRET, and SMTP credentials
 
 # 4. Create database tables
 npm run db:init
@@ -63,6 +63,13 @@ JWT_EXPIRES_IN=7d
 PORT=4000
 NODE_ENV=development
 FRONTEND_URL=http://localhost:3000
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=you@example.com
+SMTP_PASS=your-email-password-or-app-password
+SMTP_SECURE=false
+MAIL_FROM="ChatApp <no-reply@example.com>"
+SIGNUP_OTP_EXPIRES_MINUTES=10
 ```
 
 ### `frontend/.env.local`
@@ -148,7 +155,8 @@ All REST routes except `/api/auth/*` require `Authorization: Bearer <token>`.
 
 | Method | Path                  | Body                          |
 | ------ | --------------------- | ----------------------------- |
-| POST   | `/api/auth/register`  | `{ name, email, password }`   |
+| POST   | `/api/auth/register/request-otp` | `{ name, email, password }` |
+| POST   | `/api/auth/register`  | `{ email, otp }`              |
 | POST   | `/api/auth/login`     | `{ email, password }`         |
 | GET    | `/api/auth/me`        | —                             |
 
@@ -203,6 +211,7 @@ Socket connects to `ws://localhost:4000` with `auth: { token }` (JWT).
 
 ```sql
 users              — id (UUID), name, email, password_hash, avatar_color
+email_verifications — email, name, password_hash, otp_hash, attempt_count, expires_at
 friend_requests    — requester_id, receiver_id, status (pending/accepted/rejected)
 friendships        — user1_id, user2_id (normalised: user1 < user2)
 messages           — sender_id, receiver_id, content, sent_at, is_read
@@ -236,7 +245,7 @@ From the **root** directory:
 
 ### Backend → Railway / Render / Fly.io
 
-1. Set environment variables: `DATABASE_URL`, `JWT_SECRET`, `PORT`, `FRONTEND_URL`, `NODE_ENV=production`
+1. Set environment variables: `DATABASE_URL`, `JWT_SECRET`, `PORT`, `FRONTEND_URL`, `NODE_ENV=production`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `MAIL_FROM`
 2. Build: `npm run build --prefix backend`
 3. Start: `node backend/dist/server.js`
 
@@ -250,6 +259,7 @@ From the **root** directory:
 ## 🔒 Security
 
 - Passwords hashed with **bcrypt** (12 rounds)
+- Signup requires a **6-digit email OTP** before the account is created
 - Routes protected with **JWT bearer tokens** (7-day expiry)
 - **Socket.IO authentication** — JWT verified on connection handshake
 - **Helmet.js** sets secure HTTP headers

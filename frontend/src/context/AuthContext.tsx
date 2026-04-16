@@ -36,8 +36,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/');
   };
 
-  const register = async (name: string, email: string, password: string) => {
-    const data = await api.post<{ token: string; user: User }>('/auth/register', { name, email, password });
+  const requestRegisterOtp = async (name: string, email: string, password: string) => {
+    return api.post<{ message: string; expiresInMinutes: number }>('/auth/register/request-otp', {
+      name,
+      email,
+      password,
+    });
+  };
+
+  const register = async (email: string, otp: string) => {
+    const data = await api.post<{ token: string; user: User }>('/auth/register', { email, otp });
     localStorage.setItem('chatdapp_token', data.token);
     setToken(data.token);
     setUser(data.user);
@@ -52,7 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    <AuthContext.Provider
+      value={{ user, token, login, requestRegisterOtp, register, logout, loading }}
+    >
       {children}
     </AuthContext.Provider>
   );

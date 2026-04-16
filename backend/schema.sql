@@ -13,6 +13,17 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at    TIMESTAMPTZ  DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS email_verifications (
+  email         VARCHAR(120) PRIMARY KEY,
+  name          VARCHAR(60)  NOT NULL,
+  password_hash TEXT         NOT NULL,
+  otp_hash      TEXT         NOT NULL,
+  attempt_count INT          NOT NULL DEFAULT 0,
+  expires_at    TIMESTAMPTZ  NOT NULL,
+  created_at    TIMESTAMPTZ  DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ  DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS friend_requests (
   id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   requester_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -47,3 +58,5 @@ CREATE INDEX IF NOT EXISTS idx_fs_u1          ON friendships (user1_id);
 CREATE INDEX IF NOT EXISTS idx_fs_u2          ON friendships (user2_id);
 CREATE INDEX IF NOT EXISTS idx_msg_pair       ON messages (sender_id, receiver_id, sent_at);
 CREATE INDEX IF NOT EXISTS idx_msg_receiver   ON messages (receiver_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_expires_at
+  ON email_verifications (expires_at);
