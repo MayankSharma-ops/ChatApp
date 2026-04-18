@@ -297,7 +297,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     const { password_hash, ...safeUser } = user;
     res.json({ token, user: safeUser });
   } catch (e: any) {
-    console.error("Login error:", e.message);
+    console.error("Login error:", e.message, e.code, e.stack);
     res.status(500).json({ error: "Server error" });
   }
 });
