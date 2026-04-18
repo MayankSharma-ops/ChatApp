@@ -39,7 +39,7 @@ export default function CallOverlay() {
       localVideoRef.current.srcObject = localStream;
       localVideoRef.current.play().catch(e => console.error('Local play err:', e));
     }
-  }, [localStream, callState]);
+  }, [localStream, callState, isVideoOff]);
 
   // Bind remote stream to video element
   useEffect(() => {
@@ -197,21 +197,29 @@ export default function CallOverlay() {
             />
 
             {/* Local stream (PiP) */}
-            <div className="absolute top-4 right-4 w-36 h-28 sm:w-44 sm:h-36 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 bg-gray-800 z-10">
-              {!isVideoOff ? (
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover mirror"
-                  style={{ transform: isFrontCamera ? 'scaleX(-1)' : 'none' }}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-white/40">
-                  <VideoOff size={24} />
-                </div>
-              )}
+            <div 
+              className="absolute top-4 right-4 w-36 h-28 sm:w-44 sm:h-36 rounded-2xl shadow-2xl border-2 border-white/20 bg-gray-800 z-10 transition-transform duration-700 ease-in-out"
+              style={{
+                transformStyle: 'preserve-3d',
+                transform: isFrontCamera ? 'rotateY(0deg)' : 'rotateY(180deg)',
+              }}
+            >
+              <div className="w-full h-full rounded-2xl overflow-hidden">
+                {!isVideoOff ? (
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                    style={{ transform: 'scaleX(-1)' }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white/40">
+                    <VideoOff size={24} />
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Call info bar — top */}

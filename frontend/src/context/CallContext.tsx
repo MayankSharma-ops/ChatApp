@@ -351,10 +351,19 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     const newFacing = isFrontCamera ? 'environment' : 'user';
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { ...VIDEO_CONSTRAINTS, facingMode: newFacing },
-        audio: false,
-      });
+      let newStream: MediaStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { ...VIDEO_CONSTRAINTS, facingMode: { exact: newFacing } },
+          audio: false,
+        });
+      } catch (e) {
+        // Fallback for devices without exact facing modes (like desktops)
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { ...VIDEO_CONSTRAINTS, facingMode: newFacing },
+          audio: false,
+        });
+      }
 
       const newVideoTrack = newStream.getVideoTracks()[0];
       if (!newVideoTrack) return;
