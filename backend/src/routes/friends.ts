@@ -21,9 +21,10 @@ router.get('/', authenticate, async (req: Request, res: Response): Promise<void>
       `SELECT
          f.id,
          CASE WHEN f.user1_id=$1 THEN f.user2_id ELSE f.user1_id END AS friend_id,
-         u.name  AS friend_name,
+         u.name AS friend_name,
          u.email AS friend_email,
          u.avatar_color AS friend_avatar_color,
+         u.avatar_url AS friend_avatar_url,
          f.created_at
        FROM friendships f
        JOIN users u ON u.id = CASE WHEN f.user1_id=$1 THEN f.user2_id ELSE f.user1_id END
@@ -42,7 +43,7 @@ router.get('/requests', authenticate, async (req: Request, res: Response): Promi
   try {
     const r = await pool.query(
       `SELECT fr.id, fr.requester_id, fr.created_at,
-              u.name AS requester_name, u.email AS requester_email, u.avatar_color AS requester_avatar_color
+              u.name AS requester_name, u.email AS requester_email, u.avatar_color AS requester_avatar_color, u.avatar_url AS requester_avatar_url
        FROM friend_requests fr
        JOIN users u ON u.id = fr.requester_id
        WHERE fr.receiver_id=$1 AND fr.status='pending'

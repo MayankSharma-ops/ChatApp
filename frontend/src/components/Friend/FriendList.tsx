@@ -40,7 +40,7 @@ export default function FriendList() {
               active ? 'bg-brand/15 border border-brand/20' : 'hover:bg-white/5'
             )}
           >
-            <Avatar name={f.friend_name} color={f.friend_avatar_color} size="md" />
+            <Avatar name={f.friend_name} color={f.friend_avatar_color} url={f.friend_avatar_url} size="md" />
             <div className="flex-1 min-w-0">
               <p className={clsx('font-semibold text-sm truncate', active ? 'text-brand' : 'text-white')}>
                 {f.friend_name}

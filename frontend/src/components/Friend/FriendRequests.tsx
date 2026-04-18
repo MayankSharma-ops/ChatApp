@@ -18,7 +18,7 @@ export default function FriendRequests() {
         {friendRequests.map((req) => (
           <div key={req.id}
             className="flex items-center gap-3 bg-white/3 rounded-xl p-3 border border-white/5">
-            <Avatar name={req.requester_name} color={req.requester_avatar_color} size="md" />
+            <Avatar name={req.requester_name} color={req.requester_avatar_color} url={req.requester_avatar_url} size="md" />
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm">{req.requester_name}</p>
               <p className="text-xs text-white/40 truncate">{req.requester_email}</p>

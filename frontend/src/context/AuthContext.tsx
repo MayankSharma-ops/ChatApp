@@ -59,15 +59,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login');
   };
 
+  const updateProfile = async (name: string, avatar_url?: string | null) => {
+    const updatedUser = await api.put<User>('/users/profile', { name, avatar_url });
+    setUser(updatedUser);
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, token, login, requestRegisterOtp, register, logout, loading }}
+      value={{ user, token, login, requestRegisterOtp, register, updateProfile, logout, loading }}
     >
       {children}
     </AuthContext.Provider>
   );
 }
-
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be inside AuthProvider');

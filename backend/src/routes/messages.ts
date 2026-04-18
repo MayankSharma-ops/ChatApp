@@ -12,7 +12,7 @@ router.get('/:friendId', authenticate, async (req: Request, res: Response): Prom
   try {
     const r = await pool.query(
       `SELECT m.id, m.sender_id, m.receiver_id, m.content, m.sent_at, m.is_read,
-              u.name AS sender_name, u.avatar_color AS sender_avatar_color
+              u.name AS sender_name, u.avatar_color AS sender_avatar_color, u.avatar_url AS sender_avatar_url
        FROM messages m
        JOIN users u ON u.id = m.sender_id
        WHERE (m.sender_id=$1 AND m.receiver_id=$2)

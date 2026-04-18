@@ -3,6 +3,7 @@ export interface User {
   name: string;
   email: string;
   avatar_color: string;
+  avatar_url?: string;
   created_at: string;
 }
 
@@ -12,6 +13,7 @@ export interface FriendRequest {
   requester_name: string;
   requester_email: string;
   requester_avatar_color: string;
+  requester_avatar_url?: string;
   created_at: string;
 }
 
@@ -21,6 +23,7 @@ export interface Friend {
   friend_name: string;
   friend_email: string;
   friend_avatar_color: string;
+  friend_avatar_url?: string;
   created_at: string;
 }
 
@@ -38,6 +41,7 @@ export interface Message {
   is_read: boolean;
   sender_name: string;
   sender_avatar_color: string;
+  sender_avatar_url?: string;
 }
 
 export interface AuthContextType {
@@ -50,6 +54,7 @@ export interface AuthContextType {
     password: string
   ) => Promise<{ message: string; expiresInMinutes: number }>;
   register: (email: string, otp: string) => Promise<void>;
+  updateProfile: (name: string, avatar_url?: string | null) => Promise<void>;
   logout:   () => void;
   loading:  boolean;
 }
@@ -83,6 +88,7 @@ export interface IncomingCallData {
   callerId: string;
   callerName: string;
   callerAvatarColor: string;
+  callerAvatarUrl?: string;
   offer: RTCSessionDescriptionInit;
   callType: 'audio' | 'video';
 }
@@ -95,6 +101,7 @@ export interface CallContextType {
   peerId:          string | null;
   peerName:        string | null;
   peerAvatarColor: string | null;
+  peerAvatarUrl:   string | null;
   isMuted:         boolean;
   isVideoOff:      boolean;
   isFrontCamera:   boolean;
@@ -106,7 +113,7 @@ export interface CallContextType {
   remoteStream:    MediaStream | null;
 
   // Actions
-  callUser:    (friendId: string, friendName: string, friendAvatarColor: string, type: 'audio' | 'video') => Promise<void>;
+  callUser:    (friendId: string, friendName: string, friendAvatarColor: string, friendAvatarUrl?: string, type?: 'audio' | 'video') => Promise<void>;
   answerCall:  () => Promise<void>;
   rejectCall:  () => void;
   endCall:      () => void;

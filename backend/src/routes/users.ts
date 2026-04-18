@@ -14,7 +14,7 @@ router.get('/', authenticate, async (req: Request, res: Response): Promise<void>
   }
   try {
     const result = await pool.query(
-      `SELECT id, name, email, avatar_color, created_at
+      `SELECT id, name, email, avatar_color, avatar_url, created_at
        FROM users
        WHERE LOWER(name) LIKE LOWER($1)
           OR LOWER(email) LIKE LOWER($1)
@@ -32,7 +32,7 @@ router.get('/', authenticate, async (req: Request, res: Response): Promise<void>
 router.get('/:id', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(
-      'SELECT id, name, email, avatar_color, created_at FROM users WHERE id=$1',
+      'SELECT id, name, email, avatar_color, avatar_url, created_at FROM users WHERE id=$1',
       [req.params.id]
     );
     if (!result.rows.length) {
@@ -41,6 +41,33 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
     }
     res.json(result.rows[0]);
   } catch (e: any) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/users/profile
+router.put('/profile', authenticate, async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user!.userId;
+  const { name, avatar_url } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE users 
+       SET name = COALESCE($1, name),
+           avatar_url = COALESCE($2, avatar_url)
+       WHERE id = $3
+       RETURNING id, name, email, avatar_color, avatar_url, created_at`,
+      [name, avatar_url, userId]
+    );
+
+    if (!result.rows.length) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    res.json(result.rows[0]);
+  } catch (e: any) {
+    console.error('Update profile error:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

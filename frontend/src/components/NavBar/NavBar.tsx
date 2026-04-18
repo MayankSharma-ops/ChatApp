@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import Avatar from '@/components/UI/Avatar';
 import clsx from 'clsx';
+import EditProfileModal from './EditProfileModal';
 
 const NAV = [
   { label: 'Chat',          href: '/',            icon: MessageSquare },
@@ -21,10 +22,12 @@ export default function NavBar() {
   const { friendRequests } = useChat();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   const unread = friendRequests.length;
 
   return (
+    <>
     <header className="sticky top-0 z-40 bg-surface-card/80 backdrop-blur border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
 
@@ -62,7 +65,7 @@ export default function NavBar() {
                 onClick={() => setProfileOpen((p) => !p)}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
               >
-                <Avatar name={user.name} color={user.avatar_color} size="sm" />
+                <Avatar name={user.name} color={user.avatar_color} url={user.avatar_url} size="sm" />
                 <span className="hidden sm:block text-sm font-medium max-w-[120px] truncate">{user.name}</span>
                 <ChevronDown size={14} className="text-white/40" />
               </button>
@@ -72,6 +75,12 @@ export default function NavBar() {
                     <p className="text-sm font-semibold truncate">{user.name}</p>
                     <p className="text-xs text-white/40 truncate">{user.email}</p>
                   </div>
+                  <button
+                    onClick={() => { setProfileOpen(false); setEditProfileOpen(true); }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white/70 hover:bg-white/5 hover:text-white transition-colors"
+                  >
+                    Edit Profile
+                  </button>
                   <button
                     onClick={() => { logout(); setProfileOpen(false); }}
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
@@ -110,5 +119,9 @@ export default function NavBar() {
         </div>
       )}
     </header>
+      {editProfileOpen && (
+        <EditProfileModal onClose={() => setEditProfileOpen(false)} />
+      )}
+    </>
   );
 }

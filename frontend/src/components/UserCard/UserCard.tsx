@@ -19,7 +19,7 @@ export default function UserCard({ user, isFriend, isPending }: Props) {
 
   return (
     <div className="card flex flex-col items-center gap-3 text-center hover:border-brand/20 transition-colors relative">
-      <Avatar name={user.name} color={user.avatar_color} size="xl" className="mt-2" />
+      <Avatar name={user.name} color={user.avatar_color} url={user.avatar_url} size="xl" className="mt-2" />
       <div className="w-full min-w-0">
         <h3 className="font-semibold truncate">{user.name}</h3>
         <p className="text-xs text-white/40 truncate mt-0.5">{user.email}</p>

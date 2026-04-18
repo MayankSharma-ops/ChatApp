@@ -87,7 +87,7 @@ export default function ChatWindow() {
           >
             <ArrowLeft size={20} />
           </button>
-          <Avatar name={activeFriend.friend_name} color={activeFriend.friend_avatar_color} size="md" />
+          <Avatar name={activeFriend.friend_name} color={activeFriend.friend_avatar_color} url={activeFriend.friend_avatar_url} size="md" />
           <div>
             <p className="font-semibold text-sm">{activeFriend.friend_name}</p>
             <p className="text-xs text-white/30">{activeFriend.friend_email}</p>

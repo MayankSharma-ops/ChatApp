@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   email         VARCHAR(120) UNIQUE NOT NULL,
   password_hash TEXT         NOT NULL,
   avatar_color  VARCHAR(7)   NOT NULL DEFAULT '#f18303',
+  avatar_url    TEXT,
   created_at    TIMESTAMPTZ  DEFAULT NOW(),
   updated_at    TIMESTAMPTZ  DEFAULT NOW()
 );
