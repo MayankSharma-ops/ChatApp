@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const updateProfile = async (name: string, avatar_url?: string | null) => {
-    const updatedUser = await api.put<User>('/users/profile', { name, avatar_url });
+    const updatedUser = await api.put<User>('/users/profile', { name, avatar_url }, token);
     setUser(updatedUser);
   };
 

@@ -57,6 +57,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [peerId, setPeerId]             = useState<string | null>(null);
   const [peerName, setPeerName]         = useState<string | null>(null);
   const [peerAvatarColor, setPeerColor] = useState<string | null>(null);
+  const [peerAvatarUrl, setPeerAvatarUrl] = useState<string | null>(null);
   const [isMuted, setIsMuted]           = useState(false);
   const [isVideoOff, setIsVideoOff]     = useState(false);
   const [isFrontCamera, setIsFrontCamera] = useState(true);
@@ -99,6 +100,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setPeerId(null);
     setPeerName(null);
     setPeerColor(null);
+    setPeerAvatarUrl(null);
     setIsMuted(false);
     setIsVideoOff(false);
     setIsFrontCamera(true);
@@ -214,7 +216,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     friendId: string,
     friendName: string,
     friendAvatarColor: string,
-    type: 'audio' | 'video',
+    friendAvatarUrl?: string,
+    type: 'audio' | 'video' = 'video',
   ) => {
     if (!socket || callState !== 'idle') return;
 
@@ -224,6 +227,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     peerIdRef.current = friendId;
     setPeerName(friendName);
     setPeerColor(friendAvatarColor);
+    setPeerAvatarUrl(friendAvatarUrl ?? null);
     setCallState('calling');
 
     try {
@@ -264,6 +268,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     peerIdRef.current = incomingCall.callerId;
     setPeerName(incomingCall.callerName);
     setPeerColor(incomingCall.callerAvatarColor);
+    setPeerAvatarUrl(incomingCall.callerAvatarUrl ?? null);
 
     try {
       const stream = await acquireMedia(incomingCall.callType);
@@ -538,7 +543,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   return (
     <CallContext.Provider value={{
-      callState, callType, callId, peerId, peerName, peerAvatarColor,
+      callState, callType, callId, peerId, peerName, peerAvatarColor, peerAvatarUrl,
       isMuted, isVideoOff, isFrontCamera, isSpeakerOn,
       callDuration, callError,
       incomingCall, localStream, remoteStream,
