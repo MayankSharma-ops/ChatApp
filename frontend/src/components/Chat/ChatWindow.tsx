@@ -1,163 +1,254 @@
 'use client';
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { ChangeEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useChat } from '@/context/ChatContext';
 import { useAuth } from '@/context/AuthContext';
 import { useCall } from '@/context/CallContext';
 import Avatar from '@/components/UI/Avatar';
 import Spinner from '@/components/UI/Spinner';
-import { Send, Smile, Video, Phone, MessageSquare, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Phone, Send, Smile, Video } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import clsx from 'clsx';
 
-const EMOJIS = ['😀','😂','😍','😎','🔥','👍','🙏','🎉','❤️','😢','🤔','👏','🎊','💯','✨'];
+const EMOJIS = ['😀', '😂', '😍', '😎', '🔥', '👍', '🙏', '🎉', '❤️', '😢', '🤔', '👏', '🎊', '💯', '✨'];
 
 function formatTime(iso: string) {
-  const d = new Date(iso);
-  if (isToday(d)) return format(d, 'HH:mm');
-  if (isYesterday(d)) return `Yesterday ${format(d, 'HH:mm')}`;
-  return format(d, 'dd MMM, HH:mm');
+  const date = new Date(iso);
+  if (isToday(date)) return format(date, 'HH:mm');
+  if (isYesterday(date)) return `Yesterday ${format(date, 'HH:mm')}`;
+  return format(date, 'dd MMM, HH:mm');
 }
 
 export default function ChatWindow() {
   const { user } = useAuth();
-  const { activeFriend, setActiveFriend, messages, sendMessage, msgLoading } = useChat();
+  const {
+    activeFriend,
+    getPresenceStatus,
+    isUserOnline,
+    messages,
+    sendMessage,
+    setActiveFriend,
+    startTyping,
+    stopTyping,
+    msgLoading,
+  } = useChat();
   const { callUser, callState } = useCall();
 
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  const emojiRef  = useRef<HTMLDivElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setShowEmoji(false);
+    const handler = (event: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(event.target as Node)) {
+        setShowEmoji(false);
+      }
     };
+
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  useEffect(() => {
+    setText('');
+    setShowEmoji(false);
+  }, [activeFriend?.friend_id]);
+
   const handleSend = async () => {
     if (!text.trim() || msgLoading) return;
+
     await sendMessage(text.trim());
     setText('');
+    stopTyping();
   };
 
-  const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  const handleKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void handleSend();
+    }
+  };
+
+  const handleTextChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setText(nextValue);
+
+    if (nextValue.trim()) {
+      startTyping();
+    } else {
+      stopTyping();
+    }
   };
 
   const handleCall = (type: 'audio' | 'video') => {
     if (!activeFriend || callState !== 'idle') return;
-    callUser(
+
+    void callUser(
       activeFriend.friend_id,
       activeFriend.friend_name,
       activeFriend.friend_avatar_color,
-      type,
+      activeFriend.friend_avatar_url,
+      type
     );
   };
 
   if (!activeFriend) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-white/20 p-8">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-white/20">
         <MessageSquare size={56} className="opacity-20" />
         <div className="text-center">
-          <p className="font-semibold text-lg text-white/40">Select a friend</p>
-          <p className="text-sm mt-1">Choose someone from your friend list to start chatting</p>
+          <p className="text-lg font-semibold text-white/40">Select a friend</p>
+          <p className="mt-1 text-sm">Choose someone from your friend list to start chatting</p>
         </div>
       </div>
     );
   }
 
+  const isFriendOnline = isUserOnline(activeFriend.friend_id);
+  const presenceStatus = getPresenceStatus(activeFriend.friend_id);
+  const headerStatusText =
+    presenceStatus === 'typing'
+      ? `${activeFriend.friend_name} is typing...`
+      : isFriendOnline
+        ? 'Online'
+        : 'Offline';
+
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-surface-card/50">
+    <div className="flex flex-1 flex-col min-h-0">
+      <div className="flex items-center justify-between border-b border-white/5 bg-surface-card/50 px-4 py-3">
         <div className="flex items-center gap-3">
-          {/* Back button — mobile only */}
           <button
-            onClick={() => setActiveFriend(null)}
-            className="sm:hidden p-1.5 -ml-1 text-white/50 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+            onClick={() => {
+              stopTyping();
+              setText('');
+              setActiveFriend(null);
+            }}
+            className="rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/5 hover:text-white sm:hidden"
             aria-label="Back to friend list"
           >
             <ArrowLeft size={20} />
           </button>
-          <Avatar name={activeFriend.friend_name} color={activeFriend.friend_avatar_color} url={activeFriend.friend_avatar_url} size="md" />
+
+          <Avatar
+            name={activeFriend.friend_name}
+            color={activeFriend.friend_avatar_color}
+            url={activeFriend.friend_avatar_url}
+            size="md"
+            status={isFriendOnline ? 'online' : 'offline'}
+          />
+
           <div>
-            <p className="font-semibold text-sm">{activeFriend.friend_name}</p>
-            <p className="text-xs text-white/30">{activeFriend.friend_email}</p>
+            <p className="text-sm font-semibold">{activeFriend.friend_name}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <span
+                className={clsx(
+                  'h-2.5 w-2.5 rounded-full',
+                  isFriendOnline ? 'bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.55)]' : 'bg-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.45)]'
+                )}
+                aria-hidden="true"
+              />
+              <p
+                className={clsx(
+                  'text-xs font-medium',
+                  presenceStatus === 'typing'
+                    ? 'text-sky-300'
+                    : isFriendOnline
+                      ? 'text-emerald-300'
+                      : 'text-rose-300'
+                )}
+              >
+                {headerStatusText}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Call buttons */}
         <div className="flex items-center gap-1">
           <button
             onClick={() => handleCall('audio')}
             disabled={callState !== 'idle'}
-            className="flex items-center gap-1.5 text-xs font-medium text-white/50 hover:text-green-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-green-500/10 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white/50 transition-colors hover:bg-green-500/10 hover:text-green-400 disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Voice call"
           >
-            <Phone size={15} /> <span className="hidden sm:inline">Voice</span>
+            <Phone size={15} />
+            <span className="hidden sm:inline">Voice</span>
           </button>
+
           <button
             onClick={() => handleCall('video')}
             disabled={callState !== 'idle'}
-            className="flex items-center gap-1.5 text-xs font-medium text-white/50 hover:text-brand transition-colors px-3 py-1.5 rounded-lg hover:bg-brand/10 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white/50 transition-colors hover:bg-brand/10 hover:text-brand disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Video call"
           >
-            <Video size={15} /> <span className="hidden sm:inline">Video</span>
+            <Video size={15} />
+            <span className="hidden sm:inline">Video</span>
           </button>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-1">
+      <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (
-          <div className="flex-1 flex items-center justify-center text-white/20 text-sm">
+          <div className="flex flex-1 items-center justify-center text-sm text-white/20">
             No messages yet. Say hello! 👋
           </div>
         )}
-        {messages.map((msg) => {
-          const isMe = msg.sender_id === user?.id;
+
+        {messages.map((message) => {
+          const isMine = message.sender_id === user?.id;
+
           return (
-            <div key={msg.id} className={clsx('flex flex-col gap-0.5', isMe ? 'items-end' : 'items-start')}>
-              <div className={clsx(
-                'max-w-[75%] sm:max-w-[60%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words',
-                isMe
-                  ? 'bg-brand text-white rounded-br-sm'
-                  : 'bg-surface-card text-white/90 rounded-bl-sm border border-white/5'
-              )}>
-                {msg.content}
+            <div
+              key={message.id}
+              className={clsx('flex flex-col gap-0.5', isMine ? 'items-end' : 'items-start')}
+            >
+              <div
+                className={clsx(
+                  'max-w-[75%] break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed sm:max-w-[60%]',
+                  isMine
+                    ? 'rounded-br-sm bg-brand text-white'
+                    : 'rounded-bl-sm border border-white/5 bg-surface-card text-white/90'
+                )}
+              >
+                {message.content}
               </div>
-              <span className="text-[10px] text-white/25 px-1">{formatTime(msg.sent_at)}</span>
+              <span className="px-1 text-[10px] text-white/25">{formatTime(message.sent_at)}</span>
             </div>
           );
         })}
+
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-4 py-3 border-t border-white/5">
-        <div className="flex items-center gap-2 bg-surface-input rounded-xl px-3 py-2 border border-white/8 focus-within:border-brand/40 transition-colors">
-          {/* Emoji */}
+      <div className="border-t border-white/5 px-4 py-3">
+        <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-surface-input px-3 py-2 transition-colors focus-within:border-brand/40">
           <div className="relative" ref={emojiRef}>
             <button
-              onClick={() => setShowEmoji((p) => !p)}
-              className="text-white/30 hover:text-brand transition-colors p-1"
+              onClick={() => setShowEmoji((prev) => !prev)}
+              className="p-1 text-white/30 transition-colors hover:text-brand"
             >
               <Smile size={20} />
             </button>
+
             {showEmoji && (
-              <div className="absolute bottom-full left-0 mb-2 bg-surface-card border border-white/10 rounded-xl p-2 grid grid-cols-5 gap-1 shadow-2xl animate-fade-in z-20">
-                {EMOJIS.map((e) => (
-                  <button key={e} onClick={() => { setText((p) => p + e); setShowEmoji(false); }}
-                    className="w-8 h-8 flex items-center justify-center text-lg hover:bg-white/10 rounded-lg transition-colors">
-                    {e}
+              <div className="absolute bottom-full left-0 z-20 mb-2 grid grid-cols-5 gap-1 rounded-xl border border-white/10 bg-surface-card p-2 shadow-2xl animate-fade-in">
+                {EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => {
+                      const nextValue = `${text}${emoji}`;
+                      setText(nextValue);
+                      setShowEmoji(false);
+                      if (nextValue.trim()) startTyping();
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition-colors hover:bg-white/10"
+                  >
+                    {emoji}
                   </button>
                 ))}
               </div>
@@ -165,17 +256,17 @@ export default function ChatWindow() {
           </div>
 
           <input
-            className="flex-1 bg-transparent outline-none text-sm text-white placeholder-white/25"
-            placeholder={`Message ${activeFriend.friend_name}…`}
+            className="flex-1 bg-transparent text-sm text-white outline-none placeholder-white/25"
+            placeholder={`Message ${activeFriend.friend_name}...`}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={handleTextChange}
             onKeyDown={handleKey}
           />
 
           <button
-            onClick={handleSend}
+            onClick={() => void handleSend()}
             disabled={!text.trim() || msgLoading}
-            className="p-1.5 bg-brand hover:bg-brand-dark rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-lg bg-brand p-1.5 transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-40"
           >
             {msgLoading ? <Spinner size={16} /> : <Send size={16} className="text-white" />}
           </button>

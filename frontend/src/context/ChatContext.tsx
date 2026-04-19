@@ -1,13 +1,21 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
 import { useSocket } from '@/lib/useSocket';
 import {
-  Friend, FriendRequest, PendingRequest,
-  User, Message, ChatContextType,
+  ChatContextType,
+  Friend,
+  FriendRequest,
+  Message,
+  PendingRequest,
+  PresenceStatus,
+  User,
 } from '@/types';
+
+const LOCAL_TYPING_IDLE_MS = 1500;
+const REMOTE_TYPING_IDLE_MS = 3000;
 
 const ChatContext = createContext<ChatContextType | null>(null);
 
@@ -15,38 +23,135 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { token, user } = useAuth();
   const { socket, isConnected } = useSocket(token);
 
-  const [friends, setFriends]               = useState<Friend[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
-  const [pendingRequests, setPending]       = useState<PendingRequest[]>([]);
-  const [allUsers, setAllUsers]             = useState<User[]>([]);
-  const [messages, setMessages]             = useState<Message[]>([]);
-  const [activeFriend, setActiveFriend]     = useState<Friend | null>(null);
-  const [chatLoading, setChatLoading]       = useState(false);
-  const [msgLoading, setMsgLoading]         = useState(false);
-  const [error, setError]                   = useState('');
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set());
+  const [typingUserIds, setTypingUserIds] = useState<Set<string>>(() => new Set());
+  const [chatLoading, setChatLoading] = useState(false);
+  const [msgLoading, setMsgLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Track the previous active friend so we can leave the old room
   const prevFriendRef = useRef<Friend | null>(null);
+  const activeFriendIdRef = useRef<string | null>(null);
+  const localTypingTargetRef = useRef<string | null>(null);
+  const localTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remoteTypingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    activeFriendIdRef.current = activeFriend?.friend_id ?? null;
+  }, [activeFriend]);
 
   const clearError = () => setError('');
 
-  // ── Refresh friends / requests (still REST) ──────────────────────
+  const clearLocalTypingTimer = useCallback(() => {
+    if (!localTypingTimeoutRef.current) return;
+
+    clearTimeout(localTypingTimeoutRef.current);
+    localTypingTimeoutRef.current = null;
+  }, []);
+
+  const clearRemoteTypingTimeout = useCallback((userId: string) => {
+    const existing = remoteTypingTimeoutsRef.current.get(userId);
+    if (!existing) return;
+
+    clearTimeout(existing);
+    remoteTypingTimeoutsRef.current.delete(userId);
+  }, []);
+
+  const removeTypingUser = useCallback((userId: string) => {
+    clearRemoteTypingTimeout(userId);
+    setTypingUserIds((prev) => {
+      if (!prev.has(userId)) return prev;
+
+      const next = new Set(prev);
+      next.delete(userId);
+      return next;
+    });
+  }, [clearRemoteTypingTimeout]);
+
+  const scheduleTypingExpiry = useCallback((userId: string) => {
+    clearRemoteTypingTimeout(userId);
+
+    const timeout = setTimeout(() => {
+      removeTypingUser(userId);
+    }, REMOTE_TYPING_IDLE_MS);
+
+    remoteTypingTimeoutsRef.current.set(userId, timeout);
+  }, [clearRemoteTypingTimeout, removeTypingUser]);
+
+  const stopTypingInternal = useCallback((targetUserId?: string) => {
+    clearLocalTypingTimer();
+
+    const resolvedTarget = targetUserId ?? localTypingTargetRef.current;
+    if (!resolvedTarget) {
+      localTypingTargetRef.current = null;
+      return;
+    }
+
+    if (socket && isConnected) {
+      socket.emit('typing_stop', { toUserId: resolvedTarget });
+    }
+
+    if (!targetUserId || localTypingTargetRef.current === resolvedTarget) {
+      localTypingTargetRef.current = null;
+    }
+  }, [clearLocalTypingTimer, isConnected, socket]);
+
+  const stopTyping = useCallback(() => {
+    stopTypingInternal();
+  }, [stopTypingInternal]);
+
+  const startTyping = useCallback(() => {
+    const targetUserId = activeFriendIdRef.current;
+    if (!socket || !isConnected || !targetUserId) return;
+
+    if (localTypingTargetRef.current && localTypingTargetRef.current !== targetUserId) {
+      socket.emit('typing_stop', { toUserId: localTypingTargetRef.current });
+      localTypingTargetRef.current = null;
+    }
+
+    if (localTypingTargetRef.current !== targetUserId) {
+      socket.emit('typing_start', { toUserId: targetUserId });
+      localTypingTargetRef.current = targetUserId;
+    }
+
+    clearLocalTypingTimer();
+    localTypingTimeoutRef.current = setTimeout(() => {
+      const pendingTarget = localTypingTargetRef.current;
+      if (socket && pendingTarget) {
+        socket.emit('typing_stop', { toUserId: pendingTarget });
+      }
+
+      localTypingTargetRef.current = null;
+      localTypingTimeoutRef.current = null;
+    }, LOCAL_TYPING_IDLE_MS);
+  }, [clearLocalTypingTimer, isConnected, socket]);
+
   const refreshAll = useCallback(async () => {
     if (!token) return;
+
     try {
-      const [f, fr, p] = await Promise.allSettled([
+      const [friendsResult, requestsResult, pendingResult] = await Promise.allSettled([
         api.get<Friend[]>('/friends', token),
         api.get<FriendRequest[]>('/friends/requests', token),
         api.get<PendingRequest[]>('/friends/pending', token),
       ]);
-      if (f.status  === 'fulfilled') setFriends(f.value);
-      if (fr.status === 'fulfilled') setFriendRequests(fr.value);
-      if (p.status  === 'fulfilled') setPending(p.value);
-    } catch {}
+
+      if (friendsResult.status === 'fulfilled') setFriends(friendsResult.value);
+      if (requestsResult.status === 'fulfilled') setFriendRequests(requestsResult.value);
+      if (pendingResult.status === 'fulfilled') setPendingRequests(pendingResult.value);
+    } catch {
+      // Ignore refresh failures and keep the last good state.
+    }
   }, [token]);
 
   const searchUsers = useCallback(async (query: string) => {
     if (!token) return;
+
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
       setAllUsers([]);
@@ -57,146 +162,248 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const users = await api.get<User[]>(`/users?q=${encodeURIComponent(trimmedQuery)}`, token);
       setAllUsers(users);
       clearError();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to search users';
+      setError(message);
     }
   }, [token]);
 
-  // Initial load of friends data
-  useEffect(() => {
-    if (token) refreshAll();
-  }, [token, refreshAll]);
-
-  // Periodic refresh for friends list (not messages — that's socket now)
-  useEffect(() => {
+  const loadMessages = useCallback(async (friendId: string) => {
     if (!token) return;
-    const id = setInterval(refreshAll, 15000);
-    return () => clearInterval(id);
-  }, [token, refreshAll]);
 
-  // ── Load old messages via REST when opening a chat ───────────────
-  const loadMessages = async (friendId: string) => {
-    if (!token) return;
     try {
-      const msgs = await api.get<Message[]>(`/messages/${friendId}`, token);
-      setMessages(msgs);
-    } catch {}
-  };
+      const nextMessages = await api.get<Message[]>(`/messages/${friendId}`, token);
+      setMessages(nextMessages);
+    } catch {
+      // Keep the last loaded messages if this fetch fails.
+    }
+  }, [token]);
 
-  // ── Socket: join / leave chat rooms ──────────────────────────────
+  useEffect(() => {
+    if (!token) return;
+    void refreshAll();
+  }, [refreshAll, token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const intervalId = setInterval(() => {
+      void refreshAll();
+    }, 15000);
+
+    return () => clearInterval(intervalId);
+  }, [refreshAll, token]);
+
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    const prev = prevFriendRef.current;
+    socket.emit('presence_sync');
+  }, [isConnected, socket]);
 
-    // Leave previous chat room
-    if (prev) {
-      socket.emit('leave_chat', prev.friend_id);
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const previousFriend = prevFriendRef.current;
+
+    if (previousFriend && previousFriend.friend_id !== activeFriend?.friend_id) {
+      stopTypingInternal(previousFriend.friend_id);
+      removeTypingUser(previousFriend.friend_id);
+      socket.emit('leave_chat', previousFriend.friend_id);
     }
 
-    // Join new chat room & load history
     if (activeFriend) {
       socket.emit('join_chat', activeFriend.friend_id);
-      loadMessages(activeFriend.friend_id);
-
-      // Mark messages as read
+      void loadMessages(activeFriend.friend_id);
       socket.emit('mark_read', activeFriend.friend_id);
     } else {
       setMessages([]);
     }
 
     prevFriendRef.current = activeFriend;
-  }, [activeFriend, socket, isConnected]);
+  }, [activeFriend, isConnected, loadMessages, removeTypingUser, socket, stopTypingInternal]);
 
-  // ── Socket: listen for real-time events ──────────────────────────
   useEffect(() => {
     if (!socket) return;
 
-    // New message arrives in the active chat
-    const handleNewMessage = (msg: Message) => {
+    const handleNewMessage = (message: Message) => {
       setMessages((prev) => {
-        // Avoid duplicates (in case of reconnection replays)
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
+        if (prev.some((entry) => entry.id === message.id)) return prev;
+        return [...prev, message];
       });
 
-      // If the message is from someone else in the active chat, mark as read
-      if (activeFriend && msg.sender_id === activeFriend.friend_id) {
-        socket.emit('mark_read', activeFriend.friend_id);
+      removeTypingUser(message.sender_id);
+
+      if (activeFriendIdRef.current && message.sender_id === activeFriendIdRef.current) {
+        socket.emit('mark_read', activeFriendIdRef.current);
       }
     };
 
-    // Notification for messages outside the active chat
-    const handleNotification = (data: { type: string; senderId: string; senderName: string; preview: string }) => {
-      // You can extend this with toast notifications, badge updates, etc.
-      console.log(`📬 Notification from ${data.senderName}: ${data.preview}`);
-      // Refresh friends to update any unread indicators
-      refreshAll();
+    const handleNotification = (data: {
+      type: string;
+      senderId: string;
+      senderName: string;
+      preview: string;
+    }) => {
+      console.log(`Notification from ${data.senderName}: ${data.preview}`);
+      void refreshAll();
     };
 
-    // Someone read our messages
     const handleMessagesRead = (data: { readBy: string }) => {
-      if (activeFriend && data.readBy === activeFriend.friend_id) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.sender_id === user?.id && !m.is_read
-              ? { ...m, is_read: true }
-              : m
-          )
-        );
-      }
+      if (activeFriendIdRef.current !== data.readBy) return;
+
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.sender_id === user?.id && !message.is_read
+            ? { ...message, is_read: true }
+            : message
+        )
+      );
+    };
+
+    const handleOnlineUsers = (userIds: string[]) => {
+      const nextOnlineUsers = new Set(userIds);
+      setOnlineUserIds(nextOnlineUsers);
+
+      setTypingUserIds((prev) => {
+        const filtered = new Set(Array.from(prev).filter((userId) => nextOnlineUsers.has(userId)));
+        return filtered;
+      });
+    };
+
+    const handleUserOnline = ({ userId }: { userId: string }) => {
+      setOnlineUserIds((prev) => {
+        if (prev.has(userId)) return prev;
+
+        const next = new Set(prev);
+        next.add(userId);
+        return next;
+      });
+    };
+
+    const handleUserOffline = ({ userId }: { userId: string }) => {
+      setOnlineUserIds((prev) => {
+        if (!prev.has(userId)) return prev;
+
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+
+      removeTypingUser(userId);
+    };
+
+    const handleTypingStart = ({ fromUserId }: { fromUserId: string }) => {
+      if (!fromUserId) return;
+
+      setOnlineUserIds((prev) => {
+        if (prev.has(fromUserId)) return prev;
+
+        const next = new Set(prev);
+        next.add(fromUserId);
+        return next;
+      });
+
+      setTypingUserIds((prev) => {
+        if (prev.has(fromUserId)) return prev;
+
+        const next = new Set(prev);
+        next.add(fromUserId);
+        return next;
+      });
+
+      scheduleTypingExpiry(fromUserId);
+    };
+
+    const handleTypingStop = ({ fromUserId }: { fromUserId: string }) => {
+      if (!fromUserId) return;
+      removeTypingUser(fromUserId);
     };
 
     socket.on('new_message', handleNewMessage);
     socket.on('notification', handleNotification);
     socket.on('messages_read', handleMessagesRead);
+    socket.on('online_users', handleOnlineUsers);
+    socket.on('user_online', handleUserOnline);
+    socket.on('user_offline', handleUserOffline);
+    socket.on('typing_start', handleTypingStart);
+    socket.on('typing_stop', handleTypingStop);
 
     return () => {
       socket.off('new_message', handleNewMessage);
       socket.off('notification', handleNotification);
       socket.off('messages_read', handleMessagesRead);
+      socket.off('online_users', handleOnlineUsers);
+      socket.off('user_online', handleUserOnline);
+      socket.off('user_offline', handleUserOffline);
+      socket.off('typing_start', handleTypingStart);
+      socket.off('typing_stop', handleTypingStop);
     };
-  }, [socket, activeFriend, user?.id, refreshAll]);
+  }, [refreshAll, removeTypingUser, scheduleTypingExpiry, socket, user?.id]);
 
-  // ── Send message via Socket.IO ───────────────────────────────────
+  useEffect(() => {
+    if (isConnected) return;
+
+    clearLocalTypingTimer();
+    localTypingTargetRef.current = null;
+    setTypingUserIds(new Set());
+  }, [clearLocalTypingTimer, isConnected]);
+
+  useEffect(() => {
+    return () => {
+      clearLocalTypingTimer();
+      remoteTypingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+      remoteTypingTimeoutsRef.current.clear();
+    };
+  }, [clearLocalTypingTimer]);
+
   const sendMessage = async (content: string) => {
     if (!socket || !activeFriend || !content.trim()) return;
+
     setMsgLoading(true);
+    stopTypingInternal(activeFriend.friend_id);
+
     try {
       await new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Message send timed out'));
+        }, 10000);
+
         socket.emit(
           'send_message',
           { receiverId: activeFriend.friend_id, content: content.trim() },
-          (response: any) => {
+          (response: { error?: string }) => {
+            clearTimeout(timeoutId);
+
             if (response?.error) {
               reject(new Error(response.error));
-            } else {
-              resolve();
+              return;
             }
+
+            resolve();
           }
         );
-
-        // Timeout fallback in case ack never arrives
-        setTimeout(() => reject(new Error('Message send timed out')), 10000);
       });
+
       clearError();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to send message';
+      setError(message);
     } finally {
       setMsgLoading(false);
     }
   };
 
-  // ── Friend requests (still REST) ─────────────────────────────────
   const sendRequest = async (receiverId: string) => {
     if (!token) return;
+
     setChatLoading(true);
     try {
       await api.post('/friends/request', { receiverId }, token);
       await refreshAll();
       clearError();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to send friend request';
+      setError(message);
     } finally {
       setChatLoading(false);
     }
@@ -204,25 +411,53 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const respondRequest = async (requesterId: string, accept: boolean) => {
     if (!token) return;
+
     setChatLoading(true);
     try {
       await api.post('/friends/respond', { requesterId, accept }, token);
       await refreshAll();
       clearError();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to respond to request';
+      setError(message);
     } finally {
       setChatLoading(false);
     }
   };
 
+  const isUserOnline = useCallback((userId: string) => onlineUserIds.has(userId), [onlineUserIds]);
+
+  const getPresenceStatus = useCallback((userId: string): PresenceStatus => {
+    if (typingUserIds.has(userId)) return 'typing';
+    return onlineUserIds.has(userId) ? 'online' : 'offline';
+  }, [onlineUserIds, typingUserIds]);
+
   return (
-    <ChatContext.Provider value={{
-      friends, friendRequests, pendingRequests, allUsers,
-      messages, activeFriend, setActiveFriend,
-      sendMessage, searchUsers, sendRequest, respondRequest, loadMessages,
-      refreshAll, chatLoading, msgLoading, error, clearError,
-    }}>
+    <ChatContext.Provider
+      value={{
+        friends,
+        friendRequests,
+        pendingRequests,
+        allUsers,
+        messages,
+        activeFriend,
+        setActiveFriend,
+        sendMessage,
+        searchUsers,
+        sendRequest,
+        respondRequest,
+        loadMessages,
+        refreshAll,
+        getPresenceStatus,
+        isUserOnline,
+        startTyping,
+        stopTyping,
+        chatLoading,
+        msgLoading,
+        error,
+        clearError,
+      }}
+    >
       {children}
     </ChatContext.Provider>
   );

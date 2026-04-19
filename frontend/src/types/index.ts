@@ -44,10 +44,12 @@ export interface Message {
   sender_avatar_url?: string;
 }
 
+export type PresenceStatus = 'online' | 'offline' | 'typing';
+
 export interface AuthContextType {
   user: User | null;
   token: string | null;
-  login:    (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   requestRegisterOtp: (
     name: string,
     email: string,
@@ -55,31 +57,33 @@ export interface AuthContextType {
   ) => Promise<{ message: string; expiresInMinutes: number }>;
   register: (email: string, otp: string) => Promise<void>;
   updateProfile: (name: string, avatar_url?: string | null) => Promise<void>;
-  logout:   () => void;
-  loading:  boolean;
+  logout: () => void;
+  loading: boolean;
 }
 
 export interface ChatContextType {
-  friends:         Friend[];
-  friendRequests:  FriendRequest[];
+  friends: Friend[];
+  friendRequests: FriendRequest[];
   pendingRequests: PendingRequest[];
-  allUsers:        User[];
-  messages:        Message[];
-  activeFriend:    Friend | null;
-  setActiveFriend: (f: Friend | null) => void;
-  sendMessage:     (content: string) => Promise<void>;
-  searchUsers:     (query: string) => Promise<void>;
-  sendRequest:     (receiverId: string) => Promise<void>;
-  respondRequest:  (requesterId: string, accept: boolean) => Promise<void>;
-  loadMessages:    (friendId: string) => Promise<void>;
-  refreshAll:      () => Promise<void>;
-  chatLoading:     boolean;
-  msgLoading:      boolean;
-  error:           string;
-  clearError:      () => void;
+  allUsers: User[];
+  messages: Message[];
+  activeFriend: Friend | null;
+  setActiveFriend: (friend: Friend | null) => void;
+  sendMessage: (content: string) => Promise<void>;
+  searchUsers: (query: string) => Promise<void>;
+  sendRequest: (receiverId: string) => Promise<void>;
+  respondRequest: (requesterId: string, accept: boolean) => Promise<void>;
+  loadMessages: (friendId: string) => Promise<void>;
+  refreshAll: () => Promise<void>;
+  getPresenceStatus: (userId: string) => PresenceStatus;
+  isUserOnline: (userId: string) => boolean;
+  startTyping: () => void;
+  stopTyping: () => void;
+  chatLoading: boolean;
+  msgLoading: boolean;
+  error: string;
+  clearError: () => void;
 }
-
-// ── WebRTC Call Types ──────────────────────────────────────────────
 
 export type CallState = 'idle' | 'calling' | 'ringing' | 'connected' | 'ended';
 
@@ -94,32 +98,34 @@ export interface IncomingCallData {
 }
 
 export interface CallContextType {
-  // State
-  callState:       CallState;
-  callType:        'audio' | 'video' | null;
-  callId:          string | null;
-  peerId:          string | null;
-  peerName:        string | null;
+  callState: CallState;
+  callType: 'audio' | 'video' | null;
+  callId: string | null;
+  peerId: string | null;
+  peerName: string | null;
   peerAvatarColor: string | null;
-  peerAvatarUrl:   string | null;
-  isMuted:         boolean;
-  isVideoOff:      boolean;
-  isFrontCamera:   boolean;
-  isSpeakerOn:     boolean;
-  callDuration:    number;
-  callError:       string | null;
-  incomingCall:    IncomingCallData | null;
-  localStream:     MediaStream | null;
-  remoteStream:    MediaStream | null;
-
-  // Actions
-  callUser:    (friendId: string, friendName: string, friendAvatarColor: string, friendAvatarUrl?: string, type?: 'audio' | 'video') => Promise<void>;
-  answerCall:  () => Promise<void>;
-  rejectCall:  () => void;
-  endCall:      () => void;
-  toggleMute:   () => void;
-  toggleVideo:  () => void;
-  flipCamera:   () => Promise<void>;
-  toggleSpeaker:() => void;
+  peerAvatarUrl: string | null;
+  isMuted: boolean;
+  isVideoOff: boolean;
+  isFrontCamera: boolean;
+  isSpeakerOn: boolean;
+  callDuration: number;
+  callError: string | null;
+  incomingCall: IncomingCallData | null;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
+  callUser: (
+    friendId: string,
+    friendName: string,
+    friendAvatarColor: string,
+    friendAvatarUrl?: string,
+    type?: 'audio' | 'video'
+  ) => Promise<void>;
+  answerCall: () => Promise<void>;
+  rejectCall: () => void;
+  endCall: () => void;
+  toggleMute: () => void;
+  toggleVideo: () => void;
+  flipCamera: () => Promise<void>;
+  toggleSpeaker: () => void;
 }
-

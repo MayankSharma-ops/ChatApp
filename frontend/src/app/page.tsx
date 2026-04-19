@@ -29,10 +29,10 @@ export default function HomePage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       <NavBar />
-      <main className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 gap-4">
-        <div className="flex-1 flex gap-4 min-h-0" style={{ height: 'calc(100vh - 8rem)' }}>
+      <main className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 gap-4 min-h-0 overflow-hidden">
+        <div className="flex-1 flex gap-4 min-h-0">
           {/* Sidebar — full width on mobile when no friend selected; fixed width column on desktop */}
           <aside className={`w-full sm:w-72 shrink-0 bg-surface-card rounded-2xl border border-white/5 flex flex-col overflow-hidden ${activeFriend ? 'hidden sm:flex' : 'flex'}`}>
             <div className="px-4 py-3 border-b border-white/5">
