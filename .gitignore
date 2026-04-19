@@ -10,3 +10,7 @@ backend/.env
 frontend/.env.local
 *.log
 .DS_Store
+
+frontend/out
+# or simply
+out/
