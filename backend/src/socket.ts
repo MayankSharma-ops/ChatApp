@@ -145,7 +145,7 @@ export function initSocket(httpServer: HttpServer) {
           const result = await pool.query(
             `INSERT INTO messages (sender_id, receiver_id, content)
              VALUES ($1,$2,$3)
-             RETURNING id, sender_id, receiver_id, content, sent_at, is_read`,
+             RETURNING id, sender_id, receiver_id, content, sent_at, is_read, read_at`,
             [userId, receiverId, content.trim()]
           );
 
@@ -181,13 +181,22 @@ export function initSocket(httpServer: HttpServer) {
 
     socket.on('mark_read', async (friendId: string) => {
       try {
-        await pool.query(
-          `UPDATE messages SET is_read=TRUE
-           WHERE receiver_id=$1 AND sender_id=$2 AND is_read=FALSE`,
+        const result = await pool.query(
+          `UPDATE messages SET is_read=TRUE, read_at=NOW()
+           WHERE receiver_id=$1 AND sender_id=$2 AND read_at IS NULL
+           RETURNING id, read_at`,
           [userId, friendId]
         );
 
-        io.to(`user:${friendId}`).emit('messages_read', { readBy: userId });
+        if (result.rows.length > 0) {
+          io.to(`user:${friendId}`).emit('messages_read', {
+            readBy: userId,
+            messages: result.rows.map((r: { id: string; read_at: string }) => ({
+              id: r.id,
+              read_at: r.read_at,
+            })),
+          });
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         console.error('mark_read error:', message);

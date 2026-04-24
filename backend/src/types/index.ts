@@ -39,6 +39,7 @@ export interface Message {
   content: string;
   sent_at: string;
   is_read: boolean;
+  read_at?: string | null;
   sender_name?: string;
   sender_avatar_color?: string;
 }

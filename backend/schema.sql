@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS messages (
   receiver_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   content          TEXT        NOT NULL,
   sent_at          TIMESTAMPTZ DEFAULT NOW(),
-  is_read          BOOLEAN     DEFAULT FALSE
+  is_read          BOOLEAN     DEFAULT FALSE,
+  read_at          TIMESTAMPTZ DEFAULT NULL
 );
 
 -- Indexes

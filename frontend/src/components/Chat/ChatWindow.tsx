@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCall } from '@/context/CallContext';
 import Avatar from '@/components/UI/Avatar';
 import Spinner from '@/components/UI/Spinner';
-import { ArrowLeft, Copy, MessageSquare, Phone, Pin, Send, Smile, Star, Trash2, Video } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, Copy, Info, MessageSquare, Phone, Pin, Send, Smile, Star, Trash2, Video, X } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import clsx from 'clsx';
 import type { Message } from '@/types';
@@ -46,6 +46,7 @@ export default function ChatWindow() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [starredMessages, setStarredMessages] = useState<Set<string>>(new Set());
   const [pinnedMessages, setPinnedMessages] = useState<Set<string>>(new Set());
+  const [messageInfo, setMessageInfo] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
@@ -69,6 +70,10 @@ export default function ChatWindow() {
   useEffect(() => {
     const handleEscape = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (messageInfo) {
+          setMessageInfo(null);
+          return;
+        }
         if (contextMenu) {
           setContextMenu(null);
           return;
@@ -84,7 +89,7 @@ export default function ChatWindow() {
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [activeFriend, setActiveFriend, stopTyping, contextMenu]);
+  }, [activeFriend, setActiveFriend, stopTyping, contextMenu, messageInfo]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -176,6 +181,15 @@ export default function ChatWindow() {
     void navigator.clipboard.writeText(contextMenu.message.content);
     setContextMenu(null);
   }, [contextMenu]);
+
+  const handleMessageInfo = useCallback(() => {
+    if (!contextMenu) return;
+    setMessageInfo(contextMenu.message.id);
+    setContextMenu(null);
+  }, [contextMenu]);
+
+  // Derive the live message object from the messages array so the info modal always reflects current read state
+  const currentInfoMessage = messageInfo ? messages.find((m) => m.id === messageInfo) ?? null : null;
 
   const handleTextChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.target.value;
@@ -328,7 +342,14 @@ export default function ChatWindow() {
                 )}
                 {message.content}
               </div>
-              <span className="px-1 text-[10px] text-white/25">{formatTime(message.sent_at)}</span>
+              <div className="flex items-center gap-1 px-1">
+                <span className="text-[10px] text-white/25">{formatTime(message.sent_at)}</span>
+                {isMine && (
+                  message.read_at
+                    ? <CheckCheck size={14} className="text-sky-400" />
+                    : <Check size={14} className="text-white/40" />
+                )}
+              </div>
             </div>
           );
         })}
@@ -389,6 +410,20 @@ export default function ChatWindow() {
 
             <div className="mx-3 h-px bg-white/8" />
 
+            {contextMenu.message.sender_id === user?.id && (
+              <>
+                <button
+                  onClick={handleMessageInfo}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-white/80 transition-colors hover:bg-white/8 hover:text-white"
+                >
+                  <Info size={16} className="text-white/50" />
+                  Info
+                </button>
+
+                <div className="mx-3 h-px bg-white/8" />
+              </>
+            )}
+
             <button
               onClick={handleDeleteMessage}
               className="flex w-full items-center gap-3 px-4 py-3 text-sm text-rose-400 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
@@ -396,6 +431,67 @@ export default function ChatWindow() {
               <Trash2 size={16} />
               Delete Message
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Message Info Modal */}
+      {currentInfoMessage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => setMessageInfo(null)}
+        >
+          <div
+            className="relative mx-4 w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-[#1a1a2e] shadow-2xl shadow-black/60"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+              <h3 className="text-sm font-semibold text-white">Message Info</h3>
+              <button
+                onClick={() => setMessageInfo(null)}
+                className="rounded-lg p-1 text-white/40 transition-colors hover:bg-white/8 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4">
+              <div className="mb-4 rounded-xl bg-brand/15 px-4 py-3">
+                <p className="text-sm leading-relaxed text-white/90">
+                  {currentInfoMessage.content.length > 120
+                    ? `${currentInfoMessage.content.slice(0, 120)}…`
+                    : currentInfoMessage.content}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-white/40">Sent</span>
+                  <span className="text-xs text-white/70">
+                    {format(new Date(currentInfoMessage.sent_at), 'dd MMM yyyy, hh:mm a')}
+                  </span>
+                </div>
+
+                <div className="h-px bg-white/5" />
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-white/40">Status</span>
+                  {currentInfoMessage.read_at ? (
+                    <div className="flex items-center gap-1.5">
+                      <CheckCheck size={14} className="text-sky-400" />
+                      <span className="text-xs text-sky-300">
+                        Read · {format(new Date(currentInfoMessage.read_at), 'dd MMM yyyy, hh:mm a')}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <Check size={14} className="text-white/40" />
+                      <span className="text-xs text-white/50">Not seen yet</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

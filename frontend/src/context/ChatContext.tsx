@@ -248,15 +248,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       void refreshAll();
     };
 
-    const handleMessagesRead = (data: { readBy: string }) => {
+    const handleMessagesRead = (data: {
+      readBy: string;
+      messages: Array<{ id: string; read_at: string }>;
+    }) => {
       if (activeFriendIdRef.current !== data.readBy) return;
 
+      const readMap = new Map(
+        data.messages.map((m) => [m.id, m.read_at])
+      );
+
       setMessages((prev) =>
-        prev.map((message) =>
-          message.sender_id === user?.id && !message.is_read
-            ? { ...message, is_read: true }
-            : message
-        )
+        prev.map((message) => {
+          const readAt = readMap.get(message.id);
+          if (readAt) {
+            return { ...message, is_read: true, read_at: readAt };
+          }
+          return message;
+        })
       );
     };
 
