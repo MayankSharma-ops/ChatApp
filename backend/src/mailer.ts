@@ -1,6 +1,6 @@
-import nodemailer, { Transporter } from "nodemailer";
+import { Resend } from "resend";
 
-let transporter: Transporter | null = null;
+let resend: Resend | null = null;
 
 function readRequiredEnv(name: string): string {
   const value = process.env[name];
@@ -10,31 +10,13 @@ function readRequiredEnv(name: string): string {
   return value;
 }
 
-function getTransporter(): Transporter {
-  if (transporter) {
-    return transporter;
+function getResendClient(): Resend {
+  if (resend) {
+    return resend;
   }
-
-  const host = readRequiredEnv("SMTP_HOST");
-  const port = Number(process.env.SMTP_PORT || 587);
-  if (!Number.isFinite(port)) {
-    throw new Error("SMTP_PORT must be a valid number");
-  }
-
-  const user = readRequiredEnv("SMTP_USER");
-  const pass = readRequiredEnv("SMTP_PASS");
-
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: process.env.SMTP_SECURE === "true" || port === 465,
-    auth: { user, pass },
-    family: 4,          // Force IPv4 — Render blocks outbound IPv6
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-  });
-
-  return transporter;
+  const apiKey = readRequiredEnv("RESEND_API_KEY");
+  resend = new Resend(apiKey);
+  return resend;
 }
 
 interface SignupOtpEmailArgs {
@@ -50,7 +32,7 @@ export async function sendSignupOtpEmail({
 }: SignupOtpEmailArgs): Promise<void> {
   const from = process.env.MAIL_FROM || readRequiredEnv("SMTP_USER");
 
-  await getTransporter().sendMail({
+  const { data, error } = await getResendClient().emails.send({
     from,
     to: email,
     subject: "Your ChatApp signup verification code",
@@ -74,4 +56,8 @@ export async function sendSignupOtpEmail({
       </div>
     `,
   });
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
