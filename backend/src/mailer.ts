@@ -29,6 +29,9 @@ function getTransporter(): Transporter {
     port,
     secure: process.env.SMTP_SECURE === "true" || port === 465,
     auth: { user, pass },
+    family: 4,          // Force IPv4 — Render blocks outbound IPv6
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
   });
 
   return transporter;

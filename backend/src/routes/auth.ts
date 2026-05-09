@@ -129,7 +129,12 @@ router.post(
         });
       } catch (mailError: any) {
         await pool.query("DELETE FROM email_verifications WHERE email=$1", [email]);
-        console.error("Send OTP email error:", mailError.message);
+        console.error("Send OTP email error:", mailError.message, {
+          code: mailError.code,
+          response: mailError.response,
+          responseCode: mailError.responseCode,
+          command: mailError.command,
+        });
         res
           .status(500)
           .json({ error: "Unable to send verification email right now" });

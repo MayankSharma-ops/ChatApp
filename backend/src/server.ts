@@ -14,6 +14,7 @@ import { initSocket } from './socket.js';
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1);   // Render runs behind a reverse proxy
 const httpServer = createServer(app);
 
 // Security
