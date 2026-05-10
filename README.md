@@ -1,4 +1,4 @@
-# 💬 ChatApp
+# 💬 GathorChat
 
 A modern, real-time chat application with Socket.IO messaging, friend requests, and video calls.
 
@@ -32,7 +32,7 @@ A modern, real-time chat application with Socket.IO messaging, friend requests, 
 
 ```bash
 # 1. Clone or unzip the project
-cd chatdapp
+cd gathorchat
 
 # 2. Install all dependencies
 bash setup.sh
@@ -68,7 +68,7 @@ SMTP_PORT=587
 SMTP_USER=you@example.com
 SMTP_PASS=your-email-password-or-app-password
 SMTP_SECURE=false
-MAIL_FROM="ChatApp <no-reply@example.com>"
+MAIL_FROM="GathorChat <no-reply@example.com>"
 SIGNUP_OTP_EXPIRES_MINUTES=10
 ```
 
@@ -94,7 +94,7 @@ NEXT_PUBLIC_API_URL=http://localhost:4000/api
 ## 📁 Project Structure
 
 ```
-chatdapp/
+gathorchat/
 ├── .nvmrc                          ← Node 22
 ├── package.json                    ← Root scripts (dev, build, db:init)
 ├── setup.sh                        ← One-shot install script

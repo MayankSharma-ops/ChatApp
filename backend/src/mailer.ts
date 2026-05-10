@@ -35,9 +35,9 @@ export async function sendSignupOtpEmail({
   const { data, error } = await getResendClient().emails.send({
     from,
     to: email,
-    subject: "Your ChatApp signup verification code",
+    subject: "Your GathorChat signup verification code",
     text: [
-      "Welcome to ChatApp.",
+      "Welcome to GathorChat.",
       "",
       `Your one-time verification code is ${otp}.`,
       `It expires in ${expiresInMinutes} minutes.`,
@@ -46,7 +46,7 @@ export async function sendSignupOtpEmail({
     ].join("\n"),
     html: `
       <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
-        <h2 style="margin-bottom: 12px;">Verify your ChatApp signup</h2>
+        <h2 style="margin-bottom: 12px;">Verify your GathorChat signup</h2>
         <p style="margin: 0 0 12px;">Use the code below to finish creating your account.</p>
         <div style="font-size: 28px; font-weight: 700; letter-spacing: 8px; margin: 16px 0; color: #f18303;">
           ${otp}

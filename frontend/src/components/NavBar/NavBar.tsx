@@ -33,8 +33,8 @@ export default function NavBar() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
-          <MessageSquare className="text-brand" size={22} />
-          <span className="hidden sm:block">ChatApp</span>
+          <img src="/logo.png" alt="GathorChat Logo" className="w-8 h-8 rounded-full object-contain" />
+          <span className="hidden sm:block">GathorChat</span>
         </Link>
 
         {/* Desktop nav */}

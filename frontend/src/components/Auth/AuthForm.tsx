@@ -124,14 +124,14 @@ export default function AuthForm({ mode }: AuthFormProps) {
       <div className="w-full max-w-md relative">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 bg-brand/15 border border-brand/30 rounded-2xl flex items-center justify-center mb-4">
-            <MessageSquare className="text-brand" size={28} />
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4 overflow-hidden">
+            <img src="/logo.png" alt="GathorChat Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold">
             {mode === 'login' ? 'Welcome back' : 'Create account'}
           </h1>
           <p className="text-white/40 text-sm mt-1">
-            {mode === 'login' ? 'Sign in to your ChatDApp account' : 'Start chatting in seconds'}
+            {mode === 'login' ? 'Sign in to your GathorChat account' : 'Start chatting in seconds'}
           </p>
         </div>
 

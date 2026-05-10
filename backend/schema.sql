@@ -1,4 +1,4 @@
--- ChatDApp PostgreSQL Schema
+-- GathorChat PostgreSQL Schema
 -- Run: psql $DATABASE_URL -f schema.sql
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";

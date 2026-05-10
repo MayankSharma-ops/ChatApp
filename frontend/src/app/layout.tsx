@@ -6,8 +6,25 @@ import { CallProvider } from '@/context/CallContext';
 import CallOverlay from '@/components/Call/CallOverlay';
 
 export const metadata: Metadata = {
-  title: 'ChatDApp — Real-Time Chat',
-  description: 'A modern off-chain chat application',
+  title: 'Gathor Chat',
+  icons: {
+    icon: '/logo.png',
+  },
+  openGraph: {
+    title: 'Gathor Chat',
+    description: 'Connect. Collaborate. Grow.',
+    url: 'https://chat.gathor.online',
+    siteName: 'Gathor Chat',
+    images: [
+      {
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Gathor Chat',
+      },
+    ],
+    type: 'website',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

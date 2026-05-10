@@ -4,7 +4,7 @@ set -e
 GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; NC='\033[0m'
 
 echo -e "\n${CYAN}╔════════════════════════════════════╗"
-echo -e "║   ChatDApp — Setup Script          ║"
+echo -e "║   GathorChat — Setup Script          ║"
 echo -e "╚════════════════════════════════════╝${NC}\n"
 
 # nvm check
